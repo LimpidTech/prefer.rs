@@ -1,0 +1,14 @@
+[app]
+name = "test-app"
+version = "1.0.0"
+
+[server]
+host = "localhost"
+port = 8080
+
+[database]
+enabled = true
+
+[database.connection]
+host = "db.example.com"
+port = 5432
