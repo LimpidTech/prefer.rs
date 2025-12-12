@@ -44,4 +44,52 @@ pub enum Error {
     /// Invalid configuration format.
     #[error("Invalid or unsupported configuration format for file: {0}")]
     UnsupportedFormat(PathBuf),
+
+    /// A configuration source failed to load.
+    #[error("Source '{source_name}' failed to load: {source}")]
+    SourceError {
+        source_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
+
+impl Error {
+    /// Add key context to a ConversionError.
+    ///
+    /// If this is a ConversionError, returns a new ConversionError with the
+    /// specified key. Otherwise returns self unchanged.
+    #[rustfmt::skip] // Keep single-line for consistent LLVM coverage instrumentation
+    pub fn with_key(self, key: impl Into<String>) -> Self {
+        if let Error::ConversionError { type_name, source, .. } = self {
+            Error::ConversionError { key: key.into(), type_name, source }
+        } else {
+            self
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_with_key_conversion_error() {
+        let err = Error::ConversionError {
+            key: String::new(),
+            type_name: "i32".into(),
+            source: "test".into(),
+        };
+        let result = err.with_key("my.key");
+        match result {
+            Error::ConversionError { key, .. } => assert_eq!(key, "my.key"),
+            _ => panic!("expected ConversionError"),
+        }
+    }
+
+    #[test]
+    fn test_with_key_other_error() {
+        let err = Error::FileNotFound("test.json".into());
+        let result = err.with_key("ignored");
+        assert!(matches!(result, Error::FileNotFound(s) if s == "test.json"));
+    }
 }

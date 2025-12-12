@@ -1,56 +1,10 @@
-[package]
-name = "prefer"
-version = "0.2.0"
+[workspace]
+resolver = "2"
+members = ["prefer", "prefer_derive"]
+
+[workspace.package]
+version = "0.3.0"
 edition = "2021"
 authors = ["LimpidTech"]
 license = "MIT"
-description = "A library for managing application configurations with support for multiple file formats"
 repository = "https://github.com/LimpidTech/prefer.rs"
-keywords = ["config", "configuration", "settings", "yaml", "json"]
-categories = ["config", "filesystem"]
-readme = "README.md"
-
-[dependencies]
-# Async runtime
-tokio = { version = "1.35", features = ["full"] }
-async-trait = "0.1"
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-toml = "0.8"
-
-# File watching
-notify = "6.1"
-
-# Error handling
-thiserror = "1.0"
-anyhow = "1.0"
-
-# Platform-specific path handling
-dirs = "5.0"
-
-# Optional format support
-json5 = { version = "0.4", optional = true }
-quick-xml = { version = "0.31", features = ["serialize"], optional = true }
-rust-ini = { version = "0.20", optional = true }
-
-[features]
-default = ["json5", "xml", "ini"]
-json5 = ["dep:json5"]
-xml = ["dep:quick-xml"]
-ini = ["dep:rust-ini"]
-all = ["json5", "xml", "ini"]
-
-[dev-dependencies]
-tempfile = "3.8"
-tokio-test = "0.4"
-
-[[example]]
-name = "basic"
-path = "examples/basic.rs"
-
-[[example]]
-name = "watch"
-path = "examples/watch.rs"

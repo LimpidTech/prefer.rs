@@ -1,0 +1,19 @@
+{
+  "prefer/src/*.rs": {
+    "alternate": "prefer/tests/{}_test.rs",
+    "type": "source"
+  },
+  "prefer/tests/*_test.rs": {
+    "alternate": "prefer/src/{}.rs",
+    "type": "test"
+  },
+  "prefer/tests/*.rs": {
+    "type": "test"
+  },
+  "prefer_derive/src/*.rs": {
+    "type": "source"
+  },
+  "prefer/examples/*.rs": {
+    "type": "example"
+  }
+}

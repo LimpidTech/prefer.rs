@@ -1,0 +1,68 @@
+[package]
+name = "prefer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A lightweight library for managing application configurations with support for multiple file formats"
+keywords = ["config", "configuration", "settings", "yaml", "json"]
+categories = ["config", "filesystem"]
+readme = "../README.md"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+
+# Format parsers (no serde required)
+jzon = "0.12"
+yaml-rust2 = "0.8"
+toml_edit = "0.22"
+
+# File watching
+notify = "6.1"
+
+# Error handling
+thiserror = "1.0"
+
+# Platform-specific path handling
+dirs = "5.0"
+
+# Optional format support (no serde)
+roxmltree = { version = "0.20", optional = true }
+rust-ini = { version = "0.20", optional = true }
+
+# Derive macro (optional)
+prefer_derive = { path = "../prefer_derive", optional = true }
+
+[features]
+default = ["xml", "ini"]
+json5 = []  # JSON5 features handled by jzon fallback
+xml = ["dep:roxmltree"]
+ini = ["dep:rust-ini"]
+derive = ["dep:prefer_derive"]
+all = ["xml", "ini", "derive"]
+
+[dev-dependencies]
+tempfile = "3.8"
+tokio-test = "0.4"
+prefer_derive = { path = "../prefer_derive" }
+serial_test = "3.0"
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+[[example]]
+name = "watch"
+path = "examples/watch.rs"
+
+[[example]]
+name = "derive"
+path = "examples/derive.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "sources"
+path = "examples/sources.rs"

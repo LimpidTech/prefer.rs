@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <app>
+    <name>test-app</name>
+    <version>1.0.0</version>
+  </app>
+  <server>
+    <host>localhost</host>
+    <port>8080</port>
+  </server>
+  <database>
+    <enabled>true</enabled>
+  </database>
+</root>
