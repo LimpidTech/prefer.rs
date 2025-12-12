@@ -87,8 +87,11 @@ mod tests {
 
         let mut receiver = watch_path(path.clone()).await.unwrap();
 
-        // Give watcher time to set up
-        sleep(Duration::from_millis(100)).await;
+        // Consume initial notification if present (from initial write)
+        sleep(Duration::from_millis(200)).await;
+        while let Ok(Some(_)) = timeout(Duration::from_millis(50), receiver.recv()).await {
+            // Drain any initial notifications
+        }
 
         // Modify the file
         tokio::fs::write(&path, r#"{"value": 2}"#).await.unwrap();

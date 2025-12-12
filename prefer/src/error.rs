@@ -1,9 +1,9 @@
 //! Error types for the prefer library.
 
-#[cfg(feature = "std")]
-use std::path::PathBuf;
 #[cfg(not(feature = "std"))]
 use alloc::string::{String, ToString};
+#[cfg(feature = "std")]
+use std::path::PathBuf;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
@@ -16,7 +16,10 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub enum Error {
     /// Configuration file was not found in any search path.
     #[cfg(feature = "std")]
-    #[cfg_attr(feature = "std", error("Configuration file '{0}' not found in any search path"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Configuration file '{0}' not found in any search path")
+    )]
     FileNotFound(String),
 
     /// Failed to read configuration file.
@@ -26,7 +29,10 @@ pub enum Error {
 
     /// Failed to parse configuration file.
     #[cfg(feature = "std")]
-    #[cfg_attr(feature = "std", error("Failed to parse {format} file at {path}: {source}"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Failed to parse {format} file at {path}: {source}")
+    )]
     ParseError {
         format: String,
         path: PathBuf,
@@ -38,7 +44,10 @@ pub enum Error {
     KeyNotFound(String),
 
     /// Failed to convert configuration value to requested type.
-    #[cfg_attr(feature = "std", error("Failed to convert value at '{key}' to type {type_name}: {source}"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Failed to convert value at '{key}' to type {type_name}: {source}")
+    )]
     ConversionError {
         key: String,
         type_name: String,
@@ -55,12 +64,18 @@ pub enum Error {
 
     /// Invalid configuration format.
     #[cfg(feature = "std")]
-    #[cfg_attr(feature = "std", error("Invalid or unsupported configuration format for file: {0}"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Invalid or unsupported configuration format for file: {0}")
+    )]
     UnsupportedFormat(PathBuf),
 
     /// A configuration source failed to load.
     #[cfg(feature = "std")]
-    #[cfg_attr(feature = "std", error("Source '{source_name}' failed to load: {source}"))]
+    #[cfg_attr(
+        feature = "std",
+        error("Source '{source_name}' failed to load: {source}")
+    )]
     SourceError {
         source_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -73,8 +88,16 @@ impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::KeyNotFound(key) => write!(f, "Configuration key '{}' not found", key),
-            Error::ConversionError { key, type_name, source } => {
-                write!(f, "Failed to convert value at '{}' to type {}: {}", key, type_name, source)
+            Error::ConversionError {
+                key,
+                type_name,
+                source,
+            } => {
+                write!(
+                    f,
+                    "Failed to convert value at '{}' to type {}: {}",
+                    key, type_name, source
+                )
             }
         }
     }

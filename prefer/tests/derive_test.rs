@@ -104,7 +104,7 @@ struct ConfigWithRequired {
     api_key: String,
     host: Option<String>,
     #[prefer(required)]
-    endpoint: Option<String>,  // Required but nullable
+    endpoint: Option<String>, // Required but nullable
 }
 
 #[test]
@@ -304,9 +304,7 @@ fn test_required_field_present() {
 #[test]
 fn test_required_field_missing() {
     // Missing required api_key field
-    let value = obj(vec![
-        ("endpoint", str("https://api.example.com")),
-    ]);
+    let value = obj(vec![("endpoint", str("https://api.example.com"))]);
 
     let result = <ConfigWithRequired as FromValueTrait>::from_value(&value);
     assert!(result.is_err());
@@ -319,9 +317,7 @@ fn test_required_field_missing() {
 #[test]
 fn test_required_option_field_missing() {
     // Missing required endpoint field (even though it's Option<String>)
-    let value = obj(vec![
-        ("api_key", str("secret123")),
-    ]);
+    let value = obj(vec![("api_key", str("secret123"))]);
 
     let result = <ConfigWithRequired as FromValueTrait>::from_value(&value);
     assert!(result.is_err());

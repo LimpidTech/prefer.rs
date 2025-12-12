@@ -7,7 +7,10 @@ use crate::error::{Error, Result};
 use crate::value::ConfigValue;
 
 #[cfg(not(feature = "std"))]
-use alloc::{collections::BTreeMap as HashMap, string::{String, ToString}};
+use alloc::{
+    collections::BTreeMap as HashMap,
+    string::{String, ToString},
+};
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 

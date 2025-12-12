@@ -6,12 +6,21 @@
 extern crate alloc;
 
 #[cfg(not(feature = "std"))]
-use alloc::{string::{String, ToString}, vec, vec::Vec, collections::BTreeMap};
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 #[cfg(feature = "std")]
-use std::{string::{String, ToString}, vec, vec::Vec};
+use std::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
-use prefer::ConfigValue;
 use prefer::value::FromValue as FromValueTrait;
+use prefer::ConfigValue;
 
 #[cfg(feature = "derive")]
 use prefer_derive::FromValue;
