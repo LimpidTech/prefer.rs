@@ -1,24 +1,32 @@
 //! Error types for the prefer library.
 
+#[cfg(feature = "std")]
 use std::path::PathBuf;
+#[cfg(not(feature = "std"))]
+use alloc::string::{String, ToString};
+#[cfg(feature = "std")]
 use thiserror::Error;
 
 /// Result type alias for prefer operations.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// Errors that can occur when loading or parsing configuration files.
-#[derive(Error, Debug)]
+#[cfg_attr(feature = "std", derive(Error))]
+#[derive(Debug)]
 pub enum Error {
     /// Configuration file was not found in any search path.
-    #[error("Configuration file '{0}' not found in any search path")]
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Configuration file '{0}' not found in any search path"))]
     FileNotFound(String),
 
     /// Failed to read configuration file.
-    #[error("Failed to read configuration file: {0}")]
-    IoError(#[from] std::io::Error),
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Failed to read configuration file: {0}"))]
+    IoError(#[cfg_attr(feature = "std", from)] std::io::Error),
 
     /// Failed to parse configuration file.
-    #[error("Failed to parse {format} file at {path}: {source}")]
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Failed to parse {format} file at {path}: {source}"))]
     ParseError {
         format: String,
         path: PathBuf,
@@ -26,31 +34,50 @@ pub enum Error {
     },
 
     /// Requested configuration key was not found.
-    #[error("Configuration key '{0}' not found")]
+    #[cfg_attr(feature = "std", error("Configuration key '{0}' not found"))]
     KeyNotFound(String),
 
     /// Failed to convert configuration value to requested type.
-    #[error("Failed to convert value at '{key}' to type {type_name}: {source}")]
+    #[cfg_attr(feature = "std", error("Failed to convert value at '{key}' to type {type_name}: {source}"))]
     ConversionError {
         key: String,
         type_name: String,
+        #[cfg(feature = "std")]
         source: Box<dyn std::error::Error + Send + Sync>,
+        #[cfg(not(feature = "std"))]
+        source: String,
     },
 
     /// File watching error.
-    #[error("File watching error: {0}")]
-    WatchError(#[from] notify::Error),
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("File watching error: {0}"))]
+    WatchError(#[cfg_attr(feature = "std", from)] notify::Error),
 
     /// Invalid configuration format.
-    #[error("Invalid or unsupported configuration format for file: {0}")]
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Invalid or unsupported configuration format for file: {0}"))]
     UnsupportedFormat(PathBuf),
 
     /// A configuration source failed to load.
-    #[error("Source '{source_name}' failed to load: {source}")]
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Source '{source_name}' failed to load: {source}"))]
     SourceError {
         source_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+}
+
+// Manual Display implementation for no_std
+#[cfg(not(feature = "std"))]
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Error::KeyNotFound(key) => write!(f, "Configuration key '{}' not found", key),
+            Error::ConversionError { key, type_name, source } => {
+                write!(f, "Failed to convert value at '{}' to type {}: {}", key, type_name, source)
+            }
+        }
+    }
 }
 
 impl Error {

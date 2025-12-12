@@ -5,6 +5,10 @@
 
 use crate::error::{Error, Result};
 use crate::value::ConfigValue;
+
+#[cfg(not(feature = "std"))]
+use alloc::{collections::BTreeMap as HashMap, string::{String, ToString}};
+#[cfg(feature = "std")]
 use std::collections::HashMap;
 
 /// A visitor that can traverse and transform configuration values.
@@ -107,6 +111,15 @@ pub trait ValueVisitor {
         })
     }
 
+    /// Visit an array value with sequential access.
+    ///
+    /// This provides an iterator-like interface for processing array elements
+    /// one at a time, which can be more efficient than materializing the entire
+    /// array. By default, this delegates to `visit_array`.
+    fn visit_seq(&mut self, seq: SeqAccess<'_>) -> Result<Self::Output> {
+        self.visit_array(seq.as_slice())
+    }
+
     /// Visit an object/map value.
     fn visit_map(&mut self, _map: MapAccess<'_>) -> Result<Self::Output> {
         Err(Error::ConversionError {
@@ -114,6 +127,35 @@ pub trait ValueVisitor {
             type_name: self.expecting().into(),
             source: "unexpected object".into(),
         })
+    }
+
+    /// Visit an enum variant.
+    ///
+    /// This is called when deserializing enum values, providing both the
+    /// variant name and associated data.
+    fn visit_enum(&mut self, _variant: &str, _value: &ConfigValue) -> Result<Self::Output> {
+        Err(Error::ConversionError {
+            key: String::new(),
+            type_name: self.expecting().into(),
+            source: "unexpected enum variant".into(),
+        })
+    }
+
+    /// Handle an unknown field during deserialization.
+    ///
+    /// This is called when encountering fields that don't match the expected
+    /// structure. By default, unknown fields are silently ignored. Return an
+    /// error to make unknown fields cause deserialization to fail.
+    fn visit_unknown(&mut self, _key: &str, _value: &ConfigValue) -> Result<()> {
+        Ok(())
+    }
+
+    /// Finish visiting and potentially transform the output.
+    ///
+    /// This hook is called after successful visitation, allowing for final
+    /// validation or transformation of the output value.
+    fn finish(&mut self, output: Self::Output) -> Result<Self::Output> {
+        Ok(output)
     }
 }
 
@@ -160,6 +202,54 @@ impl<'a> MapAccess<'a> {
     /// Get the underlying map reference.
     pub fn as_map(&self) -> &HashMap<String, ConfigValue> {
         self.map
+    }
+}
+
+/// Provides sequential access to array elements during visitation.
+///
+/// This allows visitors to process array elements one at a time using an
+/// iterator-like pattern, which can be more efficient for large arrays.
+pub struct SeqAccess<'a> {
+    arr: &'a [ConfigValue],
+    index: usize,
+}
+
+impl<'a> SeqAccess<'a> {
+    /// Create a new sequential accessor for an array.
+    pub fn new(arr: &'a [ConfigValue]) -> Self {
+        Self { arr, index: 0 }
+    }
+
+    /// Get the next element in the sequence.
+    ///
+    /// Returns `Ok(None)` when the sequence is exhausted.
+    pub fn next_element<T: crate::FromValue>(&mut self) -> Result<Option<T>> {
+        if self.index >= self.arr.len() {
+            return Ok(None);
+        }
+        let element = &self.arr[self.index];
+        self.index += 1;
+        T::from_value(element).map(Some)
+    }
+
+    /// Get the underlying array slice.
+    pub fn as_slice(&self) -> &[ConfigValue] {
+        self.arr
+    }
+
+    /// Get the total number of elements in the sequence.
+    pub fn len(&self) -> usize {
+        self.arr.len()
+    }
+
+    /// Check if the sequence is empty.
+    pub fn is_empty(&self) -> bool {
+        self.arr.is_empty()
+    }
+
+    /// Get the current position in the sequence.
+    pub fn position(&self) -> usize {
+        self.index
     }
 }
 
@@ -210,13 +300,13 @@ pub fn visit<V: ValueVisitor>(value: &ConfigValue, visitor: &mut V) -> Result<V:
 
 /// A visitor that collects values into a type using `FromValue`.
 pub struct FromValueVisitor<T> {
-    _marker: std::marker::PhantomData<T>,
+    _marker: core::marker::PhantomData<T>,
 }
 
 impl<T> FromValueVisitor<T> {
     pub fn new() -> Self {
         Self {
-            _marker: std::marker::PhantomData,
+            _marker: core::marker::PhantomData,
         }
     }
 }
@@ -231,7 +321,7 @@ impl<T: crate::FromValue> ValueVisitor for FromValueVisitor<T> {
     type Output = T;
 
     fn expecting(&self) -> &'static str {
-        std::any::type_name::<T>()
+        core::any::type_name::<T>()
     }
 
     fn visit_null(&mut self) -> Result<Self::Output> {
@@ -369,5 +459,108 @@ mod tests {
         assert_eq!(access.get("host").unwrap().as_str(), Some("localhost"));
         assert_eq!(access.len(), 2);
         assert!(!access.is_empty());
+    }
+
+    struct SeqSumVisitor {
+        sum: i64,
+    }
+
+    impl ValueVisitor for SeqSumVisitor {
+        type Output = i64;
+
+        fn expecting(&self) -> &'static str {
+            "an array of numbers"
+        }
+
+        fn visit_seq(&mut self, mut seq: super::SeqAccess<'_>) -> Result<Self::Output> {
+            while let Some(value) = seq.next_element::<i64>()? {
+                self.sum += value;
+            }
+            Ok(self.sum)
+        }
+    }
+
+    #[test]
+    fn test_visit_seq() {
+        use super::SeqAccess;
+
+        let mut visitor = SeqSumVisitor { sum: 0 };
+        let arr = vec![
+            ConfigValue::Integer(10),
+            ConfigValue::Integer(20),
+            ConfigValue::Integer(30),
+        ];
+        let seq = SeqAccess::new(&arr);
+        let result = visitor.visit_seq(seq).unwrap();
+        assert_eq!(result, 60);
+    }
+
+    struct EnumVisitor;
+
+    impl ValueVisitor for EnumVisitor {
+        type Output = String;
+
+        fn expecting(&self) -> &'static str {
+            "an enum variant"
+        }
+
+        fn visit_enum(&mut self, variant: &str, value: &ConfigValue) -> Result<Self::Output> {
+            Ok(format!("{}:{}", variant, value.as_i64().unwrap_or(0)))
+        }
+    }
+
+    #[test]
+    fn test_visit_enum() {
+        let mut visitor = EnumVisitor;
+        let value = ConfigValue::Integer(42);
+        let result = visitor.visit_enum("Answer", &value).unwrap();
+        assert_eq!(result, "Answer:42");
+    }
+
+    struct StrictMapVisitor {
+        allowed_keys: Vec<String>,
+    }
+
+    impl ValueVisitor for StrictMapVisitor {
+        type Output = HashMap<String, ConfigValue>;
+
+        fn expecting(&self) -> &'static str {
+            "a map with only allowed keys"
+        }
+
+        fn visit_map(&mut self, map: MapAccess<'_>) -> Result<Self::Output> {
+            for key in map.keys() {
+                if !self.allowed_keys.contains(&key.to_string()) {
+                    self.visit_unknown(key, map.get(key).unwrap())?;
+                }
+            }
+            Ok(map.as_map().clone())
+        }
+
+        fn visit_unknown(&mut self, key: &str, _value: &ConfigValue) -> Result<()> {
+            Err(Error::ConversionError {
+                key: key.to_string(),
+                type_name: "strict map".into(),
+                source: format!("unknown field: {}", key).into(),
+            })
+        }
+    }
+
+    #[test]
+    fn test_visit_unknown() {
+        let mut map = HashMap::new();
+        map.insert("allowed".to_string(), ConfigValue::Integer(1));
+        map.insert("forbidden".to_string(), ConfigValue::Integer(2));
+
+        let mut visitor = StrictMapVisitor {
+            allowed_keys: vec!["allowed".to_string()],
+        };
+
+        let result = visit(&ConfigValue::Object(map), &mut visitor);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            Error::ConversionError { key, .. } => assert_eq!(key, "forbidden"),
+            _ => panic!("Expected ConversionError"),
+        }
     }
 }

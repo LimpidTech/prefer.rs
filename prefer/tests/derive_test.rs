@@ -98,6 +98,15 @@ enum Backend {
     },
 }
 
+#[derive(Debug, FromValue, PartialEq)]
+struct ConfigWithRequired {
+    #[prefer(required)]
+    api_key: String,
+    host: Option<String>,
+    #[prefer(required)]
+    endpoint: Option<String>,  // Required but nullable
+}
+
 #[test]
 fn test_simple_struct() {
     let value = obj(vec![("host", str("localhost")), ("port", int(8080))]);
@@ -277,4 +286,60 @@ async fn test_config_extract_with_derive() {
     let server: ServerConfig = config.extract("server").unwrap();
     assert_eq!(server.host, "localhost");
     assert_eq!(server.port, 8080);
+}
+
+#[test]
+fn test_required_field_present() {
+    let value = obj(vec![
+        ("api_key", str("secret123")),
+        ("endpoint", str("https://api.example.com")),
+    ]);
+
+    let config = <ConfigWithRequired as FromValueTrait>::from_value(&value).unwrap();
+    assert_eq!(config.api_key, "secret123");
+    assert_eq!(config.host, None);
+    assert_eq!(config.endpoint, Some("https://api.example.com".to_string()));
+}
+
+#[test]
+fn test_required_field_missing() {
+    // Missing required api_key field
+    let value = obj(vec![
+        ("endpoint", str("https://api.example.com")),
+    ]);
+
+    let result = <ConfigWithRequired as FromValueTrait>::from_value(&value);
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        prefer::Error::KeyNotFound(key) => assert_eq!(key, "api_key"),
+        _ => panic!("Expected KeyNotFound error"),
+    }
+}
+
+#[test]
+fn test_required_option_field_missing() {
+    // Missing required endpoint field (even though it's Option<String>)
+    let value = obj(vec![
+        ("api_key", str("secret123")),
+    ]);
+
+    let result = <ConfigWithRequired as FromValueTrait>::from_value(&value);
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        prefer::Error::KeyNotFound(key) => assert_eq!(key, "endpoint"),
+        _ => panic!("Expected KeyNotFound error"),
+    }
+}
+
+#[test]
+fn test_required_field_with_null() {
+    // Required Option field can be explicitly null
+    let value = obj(vec![
+        ("api_key", str("secret123")),
+        ("endpoint", ConfigValue::Null),
+    ]);
+
+    let config = <ConfigWithRequired as FromValueTrait>::from_value(&value).unwrap();
+    assert_eq!(config.api_key, "secret123");
+    assert_eq!(config.endpoint, None);
 }

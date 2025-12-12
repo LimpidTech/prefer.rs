@@ -109,6 +109,7 @@ struct FieldAttrs {
     default: Option<DefaultValue>,
     skip: bool,
     flatten: bool,
+    required: bool,
 }
 
 enum DefaultValue {
@@ -159,6 +160,8 @@ fn parse_field_attrs(attrs: &[Attribute]) -> Result<FieldAttrs, Error> {
                 field_attrs.skip = true;
             } else if meta.path.is_ident("flatten") {
                 field_attrs.flatten = true;
+            } else if meta.path.is_ident("required") {
+                field_attrs.required = true;
             }
             Ok(())
         })?;
@@ -207,11 +210,18 @@ fn derive_struct(
 
         let extraction = if attrs.skip {
             quote! {
-                #field_name: ::std::default::Default::default()
+                #field_name: ::core::default::Default::default()
             }
         } else if attrs.flatten {
             quote! {
                 #field_name: <#field_type as prefer::FromValue>::from_value(value)?
+            }
+        } else if attrs.required {
+            // Required fields must always be present, even if Option type
+            quote! {
+                #field_name: <#field_type as prefer::FromValue>::from_value(
+                    obj.get(#key_name).ok_or_else(|| prefer::Error::KeyNotFound(#key_name.to_string()))?
+                ).map_err(|e| e.with_key(#key_name))?
             }
         } else {
             match &attrs.default {
@@ -220,16 +230,7 @@ fn derive_struct(
                         #field_name: obj.get(#key_name)
                             .map(|v| <#field_type as prefer::FromValue>::from_value(v))
                             .transpose()
-                            .map_err(|e| match e {
-                                prefer::Error::ConversionError { type_name, source, .. } => {
-                                    prefer::Error::ConversionError {
-                                        key: #key_name.to_string(),
-                                        type_name,
-                                        source,
-                                    }
-                                }
-                                other => other,
-                            })?
+                            .map_err(|e| e.with_key(#key_name))?
                             .unwrap_or_default()
                     }
                 }
@@ -239,16 +240,7 @@ fn derive_struct(
                         #field_name: obj.get(#key_name)
                             .map(|v| <#field_type as prefer::FromValue>::from_value(v))
                             .transpose()
-                            .map_err(|e| match e {
-                                prefer::Error::ConversionError { type_name, source, .. } => {
-                                    prefer::Error::ConversionError {
-                                        key: #key_name.to_string(),
-                                        type_name,
-                                        source,
-                                    }
-                                }
-                                other => other,
-                            })?
+                            .map_err(|e| e.with_key(#key_name))?
                             .unwrap_or_else(|| #default_expr)
                     }
                 }
@@ -258,32 +250,14 @@ fn derive_struct(
                             #field_name: obj.get(#key_name)
                                 .map(|v| <#field_type as prefer::FromValue>::from_value(v))
                                 .transpose()
-                                .map_err(|e| match e {
-                                    prefer::Error::ConversionError { type_name, source, .. } => {
-                                        prefer::Error::ConversionError {
-                                            key: #key_name.to_string(),
-                                            type_name,
-                                            source,
-                                        }
-                                    }
-                                    other => other,
-                                })?
+                                .map_err(|e| e.with_key(#key_name))?
                                 .flatten()
                         }
                     } else {
                         quote! {
                             #field_name: <#field_type as prefer::FromValue>::from_value(
                                 obj.get(#key_name).ok_or_else(|| prefer::Error::KeyNotFound(#key_name.to_string()))?
-                            ).map_err(|e| match e {
-                                prefer::Error::ConversionError { type_name, source, .. } => {
-                                    prefer::Error::ConversionError {
-                                        key: #key_name.to_string(),
-                                        type_name,
-                                        source,
-                                    }
-                                }
-                                other => other,
-                            })?
+                            ).map_err(|e| e.with_key(#key_name))?
                         }
                     }
                 }
@@ -299,9 +273,9 @@ fn derive_struct(
         impl #impl_generics prefer::FromValue for #name #ty_generics #where_clause {
             fn from_value(value: &prefer::ConfigValue) -> prefer::Result<Self> {
                 let obj = value.as_object().ok_or_else(|| prefer::Error::ConversionError {
-                    key: ::std::string::String::new(),
+                    key: String::new(),
                     type_name: #type_name.to_string(),
-                    source: ::std::boxed::Box::from("expected object"),
+                    source: "expected object".into(),
                 })?;
 
                 Ok(Self {
@@ -347,7 +321,7 @@ fn derive_enum(
                             .unwrap_or_else(|| field_name.to_string());
 
                         let extraction = if field_attrs.skip {
-                            quote! { #field_name: ::std::default::Default::default() }
+                            quote! { #field_name: ::core::default::Default::default() }
                         } else if let Some(DefaultValue::Default) = field_attrs.default {
                             quote! {
                                 #field_name: obj.get(#key_name)
@@ -408,9 +382,9 @@ fn derive_enum(
             impl #impl_generics prefer::FromValue for #name #ty_generics #where_clause {
                 fn from_value(value: &prefer::ConfigValue) -> prefer::Result<Self> {
                     let obj = value.as_object().ok_or_else(|| prefer::Error::ConversionError {
-                        key: ::std::string::String::new(),
+                        key: String::new(),
                         type_name: #type_name.to_string(),
-                        source: ::std::boxed::Box::from("expected object"),
+                        source: "expected object".into(),
                     })?;
 
                     let tag = obj.get(#tag_field)
@@ -418,7 +392,7 @@ fn derive_enum(
                         .ok_or_else(|| prefer::Error::ConversionError {
                             key: #tag_field.to_string(),
                             type_name: #type_name.to_string(),
-                            source: ::std::boxed::Box::from("missing or invalid tag field"),
+                            source: "missing or invalid tag field".into(),
                         })?;
 
                     Ok(match tag {
@@ -426,7 +400,7 @@ fn derive_enum(
                         other => return Err(prefer::Error::ConversionError {
                             key: #tag_field.to_string(),
                             type_name: #type_name.to_string(),
-                            source: ::std::boxed::Box::from(format!("unknown variant: {}", other)),
+                            source: format!("unknown variant: {}", other).into(),
                         }),
                     })
                 }
@@ -457,7 +431,7 @@ fn derive_enum(
                             .unwrap_or_else(|| field_name.to_string());
 
                         let extraction = if field_attrs.skip {
-                            quote! { #field_name: ::std::default::Default::default() }
+                            quote! { #field_name: ::core::default::Default::default() }
                         } else {
                             quote! {
                                 #field_name: <#field_type as prefer::FromValue>::from_value(
@@ -506,17 +480,17 @@ fn derive_enum(
             impl #impl_generics prefer::FromValue for #name #ty_generics #where_clause {
                 fn from_value(value: &prefer::ConfigValue) -> prefer::Result<Self> {
                     let obj = value.as_object().ok_or_else(|| prefer::Error::ConversionError {
-                        key: ::std::string::String::new(),
+                        key: String::new(),
                         type_name: #type_name.to_string(),
-                        source: ::std::boxed::Box::from("expected object"),
+                        source: ("expected object"),
                     })?;
 
                     #(#variant_attempts)*
 
                     Err(prefer::Error::ConversionError {
-                        key: ::std::string::String::new(),
+                        key: String::new(),
                         type_name: #type_name.to_string(),
-                        source: ::std::boxed::Box::from("no matching variant found"),
+                        source: ("no matching variant found"),
                     })
                 }
             }

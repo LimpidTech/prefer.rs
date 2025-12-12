@@ -4,9 +4,19 @@
 //! for converting configuration values to Rust types.
 
 use crate::error::{Error, Result};
-use std::collections::HashMap;
-use std::fmt;
-use std::hash::Hash;
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    collections::BTreeMap as HashMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
+#[cfg(not(feature = "std"))]
+use core::fmt;
+
+#[cfg(feature = "std")]
+use std::{collections::HashMap, fmt, hash::Hash};
 
 /// A configuration value that can represent any supported type.
 ///
@@ -440,6 +450,7 @@ impl<T: FromValue> FromValue for Option<T> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<K, V> FromValue for HashMap<K, V>
 where
     K: FromValue + Eq + Hash,
@@ -449,6 +460,29 @@ where
         let obj = value.as_object().ok_or_else(|| Error::ConversionError {
             key: String::new(),
             type_name: "HashMap".into(),
+            source: format!("expected object, found {}", value.type_name()).into(),
+        })?;
+
+        obj.iter()
+            .map(|(k, v)| {
+                let key = K::from_value(&ConfigValue::String(k.clone()))?;
+                let val = V::from_value(v).map_err(|e| e.with_key(k))?;
+                Ok((key, val))
+            })
+            .collect()
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<K, V> FromValue for HashMap<K, V>
+where
+    K: FromValue + Ord,
+    V: FromValue,
+{
+    fn from_value(value: &ConfigValue) -> Result<Self> {
+        let obj = value.as_object().ok_or_else(|| Error::ConversionError {
+            key: String::new(),
+            type_name: "BTreeMap".into(),
             source: format!("expected object, found {}", value.type_name()).into(),
         })?;
 

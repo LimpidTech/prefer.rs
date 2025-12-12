@@ -1,6 +1,6 @@
 [package]
 name = "prefer"
-version.workspace = true
+version = "0.3.0"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -11,38 +11,49 @@ categories = ["config", "filesystem"]
 readme = "../README.md"
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.35", features = ["full"] }
-async-trait = "0.1"
+# Error handling (minimal for no_std)
+thiserror = { version = "1.0", optional = true }
 
-# Format parsers (no serde required)
-jzon = "0.12"
-yaml-rust2 = "0.8"
-toml_edit = "0.22"
+# Async runtime (std only)
+tokio = { version = "1.35", features = ["full"], optional = true }
+async-trait = { version = "0.1", optional = true }
 
-# File watching
-notify = "6.1"
+# Format parsers (std only, no serde required)
+jzon = { version = "0.12", optional = true }
+yaml-rust2 = { version = "0.8", optional = true }
+toml_edit = { version = "0.22", optional = true }
 
-# Error handling
-thiserror = "1.0"
+# File watching (std only)
+notify = { version = "6.1", optional = true }
 
-# Platform-specific path handling
-dirs = "5.0"
+# Platform-specific path handling (std only)
+dirs = { version = "5.0", optional = true }
 
-# Optional format support (no serde)
+# Optional format support (std only, no serde)
 roxmltree = { version = "0.20", optional = true }
 rust-ini = { version = "0.20", optional = true }
 
-# Derive macro (optional)
+# Derive macro (works in no_std)
 prefer_derive = { path = "../prefer_derive", optional = true }
 
 [features]
-default = ["xml", "ini"]
-json5 = []  # JSON5 features handled by jzon fallback
-xml = ["dep:roxmltree"]
-ini = ["dep:rust-ini"]
+default = ["std", "xml", "ini"]
+# Core std support - enables all I/O, async, and format parsing
+std = [
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:async-trait",
+    "dep:jzon",
+    "dep:yaml-rust2",
+    "dep:toml_edit",
+    "dep:notify",
+    "dep:dirs",
+]
+json5 = ["std"]  # JSON5 features handled by jzon fallback
+xml = ["std", "dep:roxmltree"]
+ini = ["std", "dep:rust-ini"]
 derive = ["dep:prefer_derive"]
-all = ["xml", "ini", "derive"]
+all = ["std", "xml", "ini", "derive"]
 
 [dev-dependencies]
 tempfile = "3.8"

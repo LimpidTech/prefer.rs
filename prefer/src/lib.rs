@@ -3,23 +3,28 @@
 //! A lightweight library for managing application configurations with support for multiple file formats.
 //!
 //! `prefer` helps you manage application configurations while providing users the flexibility
-//! of using whatever configuration format fits their needs. It automatically discovers
-//! configuration files in standard system locations and supports JSON, JSON5, YAML, TOML,
-//! INI, and XML formats.
+//! of using whatever configuration format fits their needs.
+//!
+//! ## no_std Support
+//!
+//! This crate supports `no_std` environments with `alloc`. The core types (`ConfigValue`, `FromValue`,
+//! `ValueVisitor`) work without std. Enable the `std` feature for file I/O, async loading, and format parsers.
 //!
 //! ## Features
 //!
-//! - **Format-agnostic**: Supports JSON, JSON5, YAML, TOML, INI, and XML
-//! - **Automatic discovery**: Searches standard system paths for configuration files
-//! - **Async by design**: Non-blocking operations for file I/O
-//! - **File watching**: Monitor configuration files for changes
+//! - **no_std compatible**: Core types work with just `alloc`
+//! - **Format-agnostic**: Supports JSON, JSON5, YAML, TOML, INI, and XML (with `std`)
+//! - **Automatic discovery**: Searches standard system paths for configuration files (with `std`)
+//! - **Async by design**: Non-blocking operations for file I/O (with `std`)
+//! - **File watching**: Monitor configuration files for changes (with `std`)
 //! - **Dot-notation access**: Access nested values with `"auth.username"`
-//! - **Cross-platform**: Works on Linux, macOS, and Windows
 //! - **No serde required**: Uses a lightweight `FromValue` trait instead
 //!
 //! ## Examples
 //!
 //! ```no_run
+//! # #[cfg(feature = "std")]
+//! # {
 //! use prefer::load;
 //!
 //! #[tokio::main]
@@ -33,24 +38,42 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(feature = "std")]
 pub mod builder;
+#[cfg(feature = "std")]
 pub mod config;
+#[cfg(feature = "std")]
 pub mod discovery;
 pub mod error;
+#[cfg(feature = "std")]
 pub mod formats;
+#[cfg(feature = "std")]
 pub mod source;
 pub mod value;
 pub mod visitor;
+#[cfg(feature = "std")]
 pub mod watch;
 
-pub use builder::ConfigBuilder;
-pub use config::Config;
+// Core types (always available)
 pub use error::{Error, Result};
-pub use source::{EnvSource, FileSource, LayeredSource, MemorySource, Source};
 pub use value::{ConfigValue, FromValue};
-pub use visitor::ValueVisitor;
+pub use visitor::{SeqAccess, ValueVisitor};
+
+// std-dependent types
+#[cfg(feature = "std")]
+pub use builder::ConfigBuilder;
+#[cfg(feature = "std")]
+pub use config::Config;
+#[cfg(feature = "std")]
+pub use source::{EnvSource, FileSource, LayeredSource, MemorySource, Source};
 
 // Re-export the derive macro when the feature is enabled
 #[cfg(feature = "derive")]
@@ -73,6 +96,8 @@ pub use prefer_derive::FromValue;
 /// # Examples
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")]
+/// # {
 /// use prefer::load;
 ///
 /// #[tokio::main]
@@ -81,7 +106,9 @@ pub use prefer_derive::FromValue;
 ///     let value: String = config.get("some.key")?;
 ///     Ok(())
 /// }
+/// # }
 /// ```
+#[cfg(feature = "std")]
 pub async fn load(name: &str) -> Result<Config> {
     Config::load(name).await
 }
@@ -102,6 +129,8 @@ pub async fn load(name: &str) -> Result<Config> {
 /// # Examples
 ///
 /// ```no_run
+/// # #[cfg(feature = "std")]
+/// # {
 /// use prefer::watch;
 ///
 /// #[tokio::main]
@@ -115,7 +144,9 @@ pub async fn load(name: &str) -> Result<Config> {
 ///
 ///     Ok(())
 /// }
+/// # }
 /// ```
+#[cfg(feature = "std")]
 pub async fn watch(name: &str) -> Result<tokio::sync::mpsc::Receiver<Config>> {
     watch::watch(name).await
 }
