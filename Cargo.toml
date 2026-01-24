@@ -3,7 +3,7 @@ resolver = "2"
 members = ["prefer", "prefer_derive"]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.3.3"
 edition = "2021"
 authors = ["LimpidTech"]
 license = "MIT"
