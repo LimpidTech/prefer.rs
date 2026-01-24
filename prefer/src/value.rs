@@ -846,4 +846,44 @@ mod tests {
     fn test_get_on_non_object() {
         assert!(int(42).get("key").is_none());
     }
+
+    #[test]
+    fn test_from_value_usize() {
+        // Valid positive integer
+        assert_eq!(usize::from_value(&int(42)).unwrap(), 42);
+        // Zero
+        assert_eq!(usize::from_value(&int(0)).unwrap(), 0);
+        // Negative value should fail
+        assert!(usize::from_value(&int(-1)).is_err());
+        // Non-integer should fail
+        assert!(usize::from_value(&string("42")).is_err());
+    }
+
+    #[test]
+    fn test_from_value_isize() {
+        // Positive integer
+        assert_eq!(isize::from_value(&int(42)).unwrap(), 42);
+        // Negative integer
+        assert_eq!(isize::from_value(&int(-42)).unwrap(), -42);
+        // Zero
+        assert_eq!(isize::from_value(&int(0)).unwrap(), 0);
+        // Non-integer should fail
+        assert!(isize::from_value(&string("42")).is_err());
+    }
+
+    #[test]
+    fn test_from_value_pathbuf() {
+        use std::path::PathBuf;
+
+        // Valid path string
+        let path = PathBuf::from_value(&string("/home/user/config.toml")).unwrap();
+        assert_eq!(path, PathBuf::from("/home/user/config.toml"));
+
+        // Empty string is valid
+        let empty = PathBuf::from_value(&string("")).unwrap();
+        assert_eq!(empty, PathBuf::from(""));
+
+        // Non-string should fail
+        assert!(PathBuf::from_value(&int(42)).is_err());
+    }
 }
