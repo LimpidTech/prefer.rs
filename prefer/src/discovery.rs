@@ -116,6 +116,7 @@ pub async fn find_config_file(name: &str) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_get_search_paths() {
@@ -162,6 +163,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_find_exact_file_with_extension() {
         use std::io::Write;
         use tempfile::TempDir;
@@ -185,6 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_find_file_appends_extension() {
         use std::io::Write;
         use tempfile::TempDir;
