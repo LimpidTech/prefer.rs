@@ -381,6 +381,36 @@ impl FromValue for u64 {
     }
 }
 
+impl FromValue for usize {
+    fn from_value(value: &ConfigValue) -> Result<Self> {
+        let n = value.as_i64().ok_or_else(|| Error::ConversionError {
+            key: String::new(),
+            type_name: "usize".into(),
+            source: format!("expected integer, found {}", value.type_name()).into(),
+        })?;
+        usize::try_from(n).map_err(|_| Error::ConversionError {
+            key: String::new(),
+            type_name: "usize".into(),
+            source: format!("value {} out of range for usize", n).into(),
+        })
+    }
+}
+
+impl FromValue for isize {
+    fn from_value(value: &ConfigValue) -> Result<Self> {
+        let n = value.as_i64().ok_or_else(|| Error::ConversionError {
+            key: String::new(),
+            type_name: "isize".into(),
+            source: format!("expected integer, found {}", value.type_name()).into(),
+        })?;
+        isize::try_from(n).map_err(|_| Error::ConversionError {
+            key: String::new(),
+            type_name: "isize".into(),
+            source: format!("value {} out of range for isize", n).into(),
+        })
+    }
+}
+
 impl FromValue for f32 {
     fn from_value(value: &ConfigValue) -> Result<Self> {
         value
@@ -412,6 +442,20 @@ impl FromValue for String {
             .ok_or_else(|| Error::ConversionError {
                 key: String::new(),
                 type_name: "String".into(),
+                source: format!("expected string, found {}", value.type_name()).into(),
+            })
+    }
+}
+
+#[cfg(feature = "std")]
+impl FromValue for std::path::PathBuf {
+    fn from_value(value: &ConfigValue) -> Result<Self> {
+        value
+            .as_str()
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| Error::ConversionError {
+                key: String::new(),
+                type_name: "PathBuf".into(),
                 source: format!("expected string, found {}", value.type_name()).into(),
             })
     }
