@@ -173,9 +173,9 @@ mod tests {
     #[test]
     fn test_deserialize_float_text() {
         let f = XmlFormatter;
-        let xml = r#"<root><pi>3.14</pi></root>"#;
+        let xml = r#"<root><pi>3.15</pi></root>"#;
         let result = f.deserialize(xml).unwrap();
-        assert_eq!(result.get("pi").unwrap().as_f64(), Some(3.14));
+        assert_eq!(result.get("pi").unwrap().as_f64(), Some(3.15));
     }
 
     #[test]
@@ -207,8 +207,8 @@ mod tests {
         let serialized = f.serialize(&ConfigValue::Integer(42)).unwrap();
         assert!(serialized.contains("<root>42</root>"));
 
-        let serialized = f.serialize(&ConfigValue::Float(3.14)).unwrap();
-        assert!(serialized.contains("<root>3.14</root>"));
+        let serialized = f.serialize(&ConfigValue::Float(3.15)).unwrap();
+        assert!(serialized.contains("<root>3.15</root>"));
 
         let serialized = f.serialize(&ConfigValue::String("hello".into())).unwrap();
         assert!(serialized.contains("<root>hello</root>"));
