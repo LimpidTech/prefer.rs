@@ -3,6 +3,8 @@
 //! The `ConfigBuilder` provides a fluent API for creating configurations
 //! from multiple sources with layered overrides.
 
+#![allow(deprecated)] // Builder still uses Source/FileSource internally during transition
+
 use crate::config::Config;
 use crate::error::Result;
 use crate::source::{EnvSource, FileSource, LayeredSource, MemorySource, Source};

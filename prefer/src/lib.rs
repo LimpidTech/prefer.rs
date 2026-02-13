@@ -81,6 +81,7 @@ pub use builder::ConfigBuilder;
 #[cfg(feature = "std")]
 pub use config::Config;
 #[cfg(feature = "std")]
+#[allow(deprecated)]
 pub use source::{EnvSource, FileSource, LayeredSource, MemorySource, Source};
 
 // Re-export the derive macro when the feature is enabled

@@ -3,6 +3,11 @@
 //! This module provides the `Source` trait for abstracting configuration sources,
 //! allowing configuration to be loaded from files, environment variables, databases,
 //! or any other source.
+//!
+//! **Deprecated:** The `Source` trait is superseded by `Loader` + `Formatter`.
+//! `EnvSource`, `MemorySource`, and `LayeredSource` remain as layering utilities.
+
+#![allow(deprecated)] // Internal implementations still reference their own deprecated types
 
 use crate::error::{Error, Result};
 use crate::formats;
@@ -13,8 +18,13 @@ use std::path::{Path, PathBuf};
 
 /// A source of configuration data.
 ///
-/// Implementations of this trait can load configuration from various sources
-/// such as files, environment variables, databases, or remote services.
+/// **Deprecated:** Use the `Loader` trait instead. `Loader` participates in
+/// automatic plugin discovery via the registry, while `Source` requires
+/// manual construction and wiring. `Source` will be removed in a future
+/// major version.
+///
+/// `EnvSource` and `MemorySource` are not affected — they remain as
+/// layering utilities used by `ConfigBuilder`.
 ///
 /// # Examples
 ///
@@ -38,6 +48,10 @@ use std::path::{Path, PathBuf};
 ///     }
 /// }
 /// ```
+#[deprecated(
+    since = "0.4.0",
+    note = "Use the Loader trait instead. Source will be removed in a future version."
+)]
 #[async_trait]
 pub trait Source: Send + Sync {
     /// Load configuration data from this source.
@@ -48,6 +62,13 @@ pub trait Source: Send + Sync {
 }
 
 /// A configuration source that loads from a file.
+///
+/// **Deprecated:** Use `FileLoader` instead, which participates in
+/// automatic registry discovery.
+#[deprecated(
+    since = "0.4.0",
+    note = "Use prefer::loader::file::FileLoader instead."
+)]
 pub struct FileSource {
     path: PathBuf,
 }
