@@ -212,10 +212,7 @@ impl Config {
     /// Register a handler for configuration change events.
     ///
     /// The handler is called whenever `set()` is used to modify a value.
-    pub fn on_change(
-        &mut self,
-        handler: Box<dyn Fn(&str, &ConfigValue, Option<&ConfigValue>) + Send + Sync>,
-    ) {
+    pub fn on_change(&mut self, handler: crate::events::EventHandler) {
         let emitter = self.emitter.get_or_insert_with(Emitter::new);
         emitter.bind("changed", handler);
     }

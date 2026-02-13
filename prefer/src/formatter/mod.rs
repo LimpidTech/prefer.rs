@@ -92,14 +92,14 @@ pub fn extension_matches(identifier: &str, extensions: &[&str]) -> bool {
         Some(e) => e,
         None => return false,
     };
-    extensions.iter().any(|supported| *supported == ext)
+    extensions.contains(&ext)
 }
 
 /// Check whether a format hint string matches any of the given extensions.
 ///
 /// Used when matching by format hint rather than file extension.
 pub fn hint_matches(hint: &str, extensions: &[&str]) -> bool {
-    extensions.iter().any(|ext| *ext == hint)
+    extensions.contains(&hint)
 }
 
 #[cfg(test)]
