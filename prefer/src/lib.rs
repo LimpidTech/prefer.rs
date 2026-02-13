@@ -56,6 +56,8 @@ pub mod error;
 #[cfg(feature = "std")]
 pub mod formats;
 #[cfg(feature = "std")]
+pub mod formatter;
+#[cfg(feature = "std")]
 pub mod loader;
 #[cfg(feature = "std")]
 pub mod source;
