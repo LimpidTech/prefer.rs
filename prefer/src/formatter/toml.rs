@@ -96,13 +96,25 @@ fn toml_value_to_config_value(value: &toml_edit::Value) -> ConfigValue {
     }
 }
 
+fn toml_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn toml_full_key(prefix: &str, key: &str) -> String {
+    if prefix.is_empty() {
+        key.to_string()
+    } else {
+        format!("{}.{}", prefix, key)
+    }
+}
+
 fn config_value_to_toml(value: &ConfigValue, key_prefix: &str) -> String {
     match value {
         ConfigValue::Null => "\"\"".to_string(),
         ConfigValue::Bool(b) => b.to_string(),
         ConfigValue::Integer(i) => i.to_string(),
         ConfigValue::Float(f) => f.to_string(),
-        ConfigValue::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+        ConfigValue::String(s) => format!("\"{}\"", toml_escape(s)),
         ConfigValue::Array(arr) => {
             let items: Vec<String> = arr
                 .iter()
@@ -112,36 +124,23 @@ fn config_value_to_toml(value: &ConfigValue, key_prefix: &str) -> String {
         }
         ConfigValue::Object(map) => {
             let mut lines = Vec::new();
-            let mut tables = Vec::new();
+            let mut tables: Vec<(String, &HashMap<String, ConfigValue>)> = Vec::new();
 
             for (k, v) in map {
-                let full_key = if key_prefix.is_empty() {
-                    k.clone()
-                } else {
-                    format!("{}.{}", key_prefix, k)
-                };
+                let full_key = toml_full_key(key_prefix, k);
 
-                match v {
-                    ConfigValue::Object(_) => {
-                        tables.push((k.clone(), full_key, v));
-                    }
-                    _ => {
-                        lines.push(format!("{} = {}", k, config_value_to_toml(v, &full_key)));
-                    }
+                if let ConfigValue::Object(inner) = v {
+                    tables.push((full_key, inner));
+                } else {
+                    lines.push(format!("{} = {}", k, config_value_to_toml(v, &full_key)));
                 }
             }
 
-            for (_, full_key, v) in tables {
+            for (full_key, inner) in tables {
                 lines.push(format!("\n[{}]", full_key));
-                if let ConfigValue::Object(inner) = v {
-                    for (ik, iv) in inner {
-                        let inner_key = format!("{}.{}", full_key, ik);
-                        lines.push(format!(
-                            "{} = {}",
-                            ik,
-                            config_value_to_toml(iv, &inner_key)
-                        ));
-                    }
+                for (ik, iv) in inner {
+                    let inner_key = toml_full_key(&full_key, ik);
+                    lines.push(format!("{} = {}", ik, config_value_to_toml(iv, &inner_key)));
                 }
             }
 

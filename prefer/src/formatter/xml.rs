@@ -82,24 +82,27 @@ fn xml_node_to_config_value(node: roxmltree::Node) -> ConfigValue {
         }
     }
 
-    if map.is_empty() && !text_content.is_empty() {
-        if let Ok(i) = text_content.parse::<i64>() {
-            return ConfigValue::Integer(i);
+    match (map.is_empty(), text_content.is_empty()) {
+        (true, false) => parse_xml_text(text_content),
+        (false, false) => {
+            map.insert("#text".to_string(), ConfigValue::String(text_content));
+            ConfigValue::Object(map)
         }
-        if let Ok(f) = text_content.parse::<f64>() {
-            return ConfigValue::Float(f);
-        }
-        if let Ok(b) = text_content.parse::<bool>() {
-            return ConfigValue::Bool(b);
-        }
-        return ConfigValue::String(text_content);
+        _ => ConfigValue::Object(map),
     }
+}
 
-    if !text_content.is_empty() {
-        map.insert("#text".to_string(), ConfigValue::String(text_content));
+fn parse_xml_text(text: String) -> ConfigValue {
+    if let Ok(i) = text.parse::<i64>() {
+        return ConfigValue::Integer(i);
     }
-
-    ConfigValue::Object(map)
+    if let Ok(f) = text.parse::<f64>() {
+        return ConfigValue::Float(f);
+    }
+    if let Ok(b) = text.parse::<bool>() {
+        return ConfigValue::Bool(b);
+    }
+    ConfigValue::String(text)
 }
 
 fn config_value_to_xml(value: &ConfigValue) -> String {

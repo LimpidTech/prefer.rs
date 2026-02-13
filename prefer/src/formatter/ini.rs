@@ -60,18 +60,22 @@ impl Formatter for IniFormatter {
     }
 
     fn serialize(&self, value: &ConfigValue) -> Result<String> {
+        let ConfigValue::Object(map) = value else {
+            return Ok(String::new());
+        };
+
         let mut lines = Vec::new();
 
-        if let ConfigValue::Object(map) = value {
-            for (section, section_value) in map {
-                lines.push(format!("[{}]", section));
-                if let ConfigValue::Object(props) = section_value {
-                    for (key, val) in props {
-                        lines.push(format!("{} = {}", key, ini_value_str(val)));
-                    }
-                }
-                lines.push(String::new());
+        for (section, section_value) in map {
+            let ConfigValue::Object(props) = section_value else {
+                continue;
+            };
+
+            lines.push(format!("[{}]", section));
+            for (key, val) in props {
+                lines.push(format!("{} = {}", key, ini_value_str(val)));
             }
+            lines.push(String::new());
         }
 
         Ok(lines.join("\n"))

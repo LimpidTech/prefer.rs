@@ -117,18 +117,13 @@ pub use prefer_derive::FromValue;
 #[cfg(feature = "std")]
 pub async fn load(identifier: &str) -> Result<Config> {
     let loader = registry::find_loader(identifier)
-        .ok_or_else(|| Error::NoLoaderFound(identifier.to_string()))?;
+        .ok_or(Error::NoLoaderFound(identifier.to_string()))?;
 
     let result = loader.load(identifier).await?;
 
     let fmt = registry::find_formatter(&result.source)
-        .or_else(|| {
-            result
-                .format_hint
-                .as_deref()
-                .and_then(registry::find_formatter_by_hint)
-        })
-        .ok_or_else(|| Error::NoFormatterFound(result.source.clone()))?;
+        .or(result.format_hint.as_deref().and_then(registry::find_formatter_by_hint))
+        .ok_or(Error::NoFormatterFound(result.source.clone()))?;
 
     let data = fmt.deserialize(&result.content)?;
 
@@ -169,10 +164,10 @@ pub async fn load(identifier: &str) -> Result<Config> {
 #[cfg(feature = "std")]
 pub async fn watch(identifier: &str) -> Result<tokio::sync::mpsc::Receiver<Config>> {
     let loader = registry::find_loader(identifier)
-        .ok_or_else(|| Error::NoLoaderFound(identifier.to_string()))?;
+        .ok_or(Error::NoLoaderFound(identifier.to_string()))?;
 
     loader
         .watch(identifier)
         .await?
-        .ok_or_else(|| Error::WatchNotSupported(identifier.to_string()))
+        .ok_or(Error::WatchNotSupported(identifier.to_string()))
 }

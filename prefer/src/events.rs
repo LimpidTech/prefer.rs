@@ -36,10 +36,12 @@ impl Emitter {
 
     /// Emit an event, calling all registered handlers.
     pub fn emit(&self, event: &str, key: &str, value: &ConfigValue, previous: Option<&ConfigValue>) {
-        if let Some(handlers) = self.handlers.get(event) {
-            for handler in handlers {
-                handler(key, value, previous);
-            }
+        let Some(handlers) = self.handlers.get(event) else {
+            return;
+        };
+
+        for handler in handlers {
+            handler(key, value, previous);
         }
     }
 

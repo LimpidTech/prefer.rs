@@ -71,28 +71,27 @@ fn jzon_to_config_value(value: jzon::JsonValue) -> ConfigValue {
     }
 }
 
+fn json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn json_entry((k, v): (&String, &ConfigValue)) -> String {
+    format!("\"{}\":{}", json_escape(k), config_value_to_json(v))
+}
+
 fn config_value_to_json(value: &ConfigValue) -> String {
     match value {
         ConfigValue::Null => "null".to_string(),
         ConfigValue::Bool(b) => b.to_string(),
         ConfigValue::Integer(i) => i.to_string(),
         ConfigValue::Float(f) => f.to_string(),
-        ConfigValue::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+        ConfigValue::String(s) => format!("\"{}\"", json_escape(s)),
         ConfigValue::Array(arr) => {
             let items: Vec<String> = arr.iter().map(config_value_to_json).collect();
             format!("[{}]", items.join(","))
         }
         ConfigValue::Object(map) => {
-            let entries: Vec<String> = map
-                .iter()
-                .map(|(k, v)| {
-                    format!(
-                        "\"{}\":{}",
-                        k.replace('\\', "\\\\").replace('"', "\\\""),
-                        config_value_to_json(v)
-                    )
-                })
-                .collect();
+            let entries: Vec<String> = map.iter().map(json_entry).collect();
             format!("{{{}}}", entries.join(","))
         }
     }
