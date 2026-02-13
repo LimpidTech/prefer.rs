@@ -6,7 +6,6 @@
 use crate::config::Config;
 use crate::discovery;
 use crate::error::Result;
-use crate::formats;
 use crate::loader::{LoadResult, Loader};
 use crate::registry::RegisteredLoader;
 use crate::watch as watch_mod;
@@ -66,9 +65,6 @@ impl Loader for FileLoader {
     async fn load(&self, identifier: &str) -> Result<LoadResult> {
         let path = self.locate(identifier).await?;
         let content = tokio::fs::read_to_string(&path).await?;
-
-        // Validate the content parses before returning
-        formats::parse(&content, &path)?;
 
         Ok(LoadResult {
             source: path.to_string_lossy().to_string(),
