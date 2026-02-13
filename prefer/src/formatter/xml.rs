@@ -159,4 +159,104 @@ mod tests {
         let f = XmlFormatter;
         assert!(f.deserialize("<unclosed>").is_err());
     }
+
+    #[test]
+    fn test_deserialize_repeated_elements_become_array() {
+        let f = XmlFormatter;
+        let xml = r#"<root><item>a</item><item>b</item><item>c</item></root>"#;
+        let result = f.deserialize(xml).unwrap();
+        let items = result.get("item").unwrap().as_array().unwrap();
+        assert_eq!(items.len(), 3);
+    }
+
+    #[test]
+    fn test_deserialize_float_text() {
+        let f = XmlFormatter;
+        let xml = r#"<root><pi>3.14</pi></root>"#;
+        let result = f.deserialize(xml).unwrap();
+        assert_eq!(result.get("pi").unwrap().as_f64(), Some(3.14));
+    }
+
+    #[test]
+    fn test_deserialize_bool_text() {
+        let f = XmlFormatter;
+        let xml = r#"<root><enabled>true</enabled></root>"#;
+        let result = f.deserialize(xml).unwrap();
+        assert_eq!(result.get("enabled").unwrap().as_bool(), Some(true));
+    }
+
+    #[test]
+    fn test_deserialize_empty_element() {
+        let f = XmlFormatter;
+        let xml = r#"<root><empty/></root>"#;
+        let result = f.deserialize(xml).unwrap();
+        // Empty element becomes an empty object
+        assert!(result.get("empty").unwrap().as_object().is_some());
+    }
+
+    #[test]
+    fn test_serialize_all_scalar_types() {
+        let f = XmlFormatter;
+        let serialized = f.serialize(&ConfigValue::Null).unwrap();
+        assert!(serialized.contains("<root></root>"));
+
+        let serialized = f.serialize(&ConfigValue::Bool(true)).unwrap();
+        assert!(serialized.contains("<root>true</root>"));
+
+        let serialized = f.serialize(&ConfigValue::Integer(42)).unwrap();
+        assert!(serialized.contains("<root>42</root>"));
+
+        let serialized = f.serialize(&ConfigValue::Float(3.14)).unwrap();
+        assert!(serialized.contains("<root>3.14</root>"));
+
+        let serialized = f.serialize(&ConfigValue::String("hello".into())).unwrap();
+        assert!(serialized.contains("<root>hello</root>"));
+    }
+
+    #[test]
+    fn test_serialize_array() {
+        let f = XmlFormatter;
+        let arr = ConfigValue::Array(vec![
+            ConfigValue::String("a".into()),
+            ConfigValue::String("b".into()),
+        ]);
+        let serialized = f.serialize(&arr).unwrap();
+        assert!(serialized.contains("ab"));
+    }
+
+    #[test]
+    fn test_serialize_object() {
+        let f = XmlFormatter;
+        let mut map = HashMap::new();
+        map.insert("name".to_string(), ConfigValue::String("test".into()));
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("<name>test</name>"));
+    }
+
+    #[test]
+    fn test_serialize_object_skips_attrs_and_text() {
+        let f = XmlFormatter;
+        let mut map = HashMap::new();
+        map.insert("@id".to_string(), ConfigValue::String("123".into()));
+        map.insert("#text".to_string(), ConfigValue::String("body".into()));
+        map.insert("child".to_string(), ConfigValue::String("val".into()));
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("<child>val</child>"));
+        assert!(!serialized.contains("<@id>"));
+        assert!(!serialized.contains("<#text>"));
+    }
+
+    #[test]
+    fn test_serialize_nested_object() {
+        let f = XmlFormatter;
+        let mut inner = HashMap::new();
+        inner.insert("host".to_string(), ConfigValue::String("localhost".into()));
+        let mut outer = HashMap::new();
+        outer.insert("server".to_string(), ConfigValue::Object(inner));
+        let obj = ConfigValue::Object(outer);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("<server><host>localhost</host></server>"));
+    }
 }

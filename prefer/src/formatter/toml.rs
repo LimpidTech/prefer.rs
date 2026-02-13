@@ -184,4 +184,111 @@ mod tests {
         assert_eq!(f.serialize(&ConfigValue::Integer(42)).unwrap(), "42");
         assert_eq!(f.serialize(&ConfigValue::Bool(true)).unwrap(), "true");
     }
+
+    #[test]
+    fn test_serialize_all_scalar_types() {
+        let f = TomlFormatter;
+        assert_eq!(f.serialize(&ConfigValue::Null).unwrap(), "\"\"");
+        assert_eq!(f.serialize(&ConfigValue::Float(3.14)).unwrap(), "3.14");
+        assert_eq!(
+            f.serialize(&ConfigValue::String("hello".into())).unwrap(),
+            "\"hello\""
+        );
+    }
+
+    #[test]
+    fn test_serialize_string_escaping() {
+        let f = TomlFormatter;
+        assert_eq!(
+            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            "\"say \\\"hi\\\"\""
+        );
+        assert_eq!(
+            f.serialize(&ConfigValue::String("back\\slash".into())).unwrap(),
+            "\"back\\\\slash\""
+        );
+    }
+
+    #[test]
+    fn test_serialize_array() {
+        let f = TomlFormatter;
+        let arr = ConfigValue::Array(vec![
+            ConfigValue::Integer(1),
+            ConfigValue::Integer(2),
+            ConfigValue::Integer(3),
+        ]);
+        assert_eq!(f.serialize(&arr).unwrap(), "[1, 2, 3]");
+    }
+
+    #[test]
+    fn test_serialize_object_flat() {
+        let f = TomlFormatter;
+        let mut map = HashMap::new();
+        map.insert("port".to_string(), ConfigValue::Integer(8080));
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("port = 8080"));
+    }
+
+    #[test]
+    fn test_serialize_object_nested() {
+        let f = TomlFormatter;
+        let mut inner = HashMap::new();
+        inner.insert("host".to_string(), ConfigValue::String("localhost".into()));
+        let mut outer = HashMap::new();
+        outer.insert("server".to_string(), ConfigValue::Object(inner));
+        let obj = ConfigValue::Object(outer);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("[server]"));
+        assert!(serialized.contains("host = \"localhost\""));
+    }
+
+    #[test]
+    fn test_deserialize_array_of_tables() {
+        let f = TomlFormatter;
+        let toml = r#"
+[[servers]]
+name = "alpha"
+port = 8080
+
+[[servers]]
+name = "beta"
+port = 9090
+"#;
+        let result = f.deserialize(toml).unwrap();
+        let servers = result.get("servers").unwrap().as_array().unwrap();
+        assert_eq!(servers.len(), 2);
+        assert_eq!(servers[0].get("name").unwrap().as_str(), Some("alpha"));
+        assert_eq!(servers[1].get("port").unwrap().as_i64(), Some(9090));
+    }
+
+    #[test]
+    fn test_deserialize_inline_table() {
+        let f = TomlFormatter;
+        let result = f.deserialize(r#"point = { x = 1, y = 2 }"#).unwrap();
+        let point = result.get("point").unwrap();
+        assert_eq!(point.get("x").unwrap().as_i64(), Some(1));
+        assert_eq!(point.get("y").unwrap().as_i64(), Some(2));
+    }
+
+    #[test]
+    fn test_deserialize_all_value_types() {
+        let f = TomlFormatter;
+        let toml = r#"
+bool_val = true
+int_val = 42
+float_val = 3.14
+str_val = "hello"
+array_val = [1, 2, 3]
+date_val = 2024-01-15
+"#;
+        let result = f.deserialize(toml).unwrap();
+        assert_eq!(result.get("bool_val").unwrap().as_bool(), Some(true));
+        assert_eq!(result.get("int_val").unwrap().as_i64(), Some(42));
+        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.14));
+        assert_eq!(result.get("str_val").unwrap().as_str(), Some("hello"));
+        assert_eq!(result.get("array_val").unwrap().as_array().unwrap().len(), 3);
+        // Datetimes become strings
+        assert!(result.get("date_val").unwrap().as_str().is_some());
+    }
 }

@@ -161,4 +161,117 @@ mod tests {
         let serialized = f.serialize(&ConfigValue::Integer(42)).unwrap();
         assert_eq!(serialized, "42");
     }
+
+    #[test]
+    fn test_serialize_all_scalar_types() {
+        let f = YamlFormatter;
+        assert_eq!(f.serialize(&ConfigValue::Null).unwrap(), "null");
+        assert_eq!(f.serialize(&ConfigValue::Bool(false)).unwrap(), "false");
+        assert_eq!(f.serialize(&ConfigValue::Float(2.5)).unwrap(), "2.5");
+        assert_eq!(
+            f.serialize(&ConfigValue::String("test".into())).unwrap(),
+            "\"test\""
+        );
+    }
+
+    #[test]
+    fn test_serialize_string_escaping() {
+        let f = YamlFormatter;
+        assert_eq!(
+            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            "\"say \\\"hi\\\"\""
+        );
+    }
+
+    #[test]
+    fn test_serialize_empty_array() {
+        let f = YamlFormatter;
+        let arr = ConfigValue::Array(vec![]);
+        assert_eq!(f.serialize(&arr).unwrap(), "[]");
+    }
+
+    #[test]
+    fn test_serialize_array() {
+        let f = YamlFormatter;
+        let arr = ConfigValue::Array(vec![
+            ConfigValue::Integer(1),
+            ConfigValue::Integer(2),
+        ]);
+        let serialized = f.serialize(&arr).unwrap();
+        assert!(serialized.contains("- 1"));
+        assert!(serialized.contains("- 2"));
+    }
+
+    #[test]
+    fn test_serialize_empty_object() {
+        let f = YamlFormatter;
+        let obj = ConfigValue::Object(HashMap::new());
+        assert_eq!(f.serialize(&obj).unwrap(), "{}");
+    }
+
+    #[test]
+    fn test_serialize_object() {
+        let f = YamlFormatter;
+        let mut map = HashMap::new();
+        map.insert("port".to_string(), ConfigValue::Integer(8080));
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("port: 8080"));
+    }
+
+    #[test]
+    fn test_serialize_nested_object() {
+        let f = YamlFormatter;
+        let mut inner = HashMap::new();
+        inner.insert("host".to_string(), ConfigValue::String("localhost".into()));
+        let mut outer = HashMap::new();
+        outer.insert("server".to_string(), ConfigValue::Object(inner));
+        let obj = ConfigValue::Object(outer);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("server:"));
+        assert!(serialized.contains("host: \"localhost\""));
+    }
+
+    #[test]
+    fn test_serialize_nested_array_in_object() {
+        let f = YamlFormatter;
+        let mut map = HashMap::new();
+        map.insert(
+            "items".to_string(),
+            ConfigValue::Array(vec![ConfigValue::Integer(1)]),
+        );
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("items:"));
+        assert!(serialized.contains("- 1"));
+    }
+
+    #[test]
+    fn test_deserialize_all_value_types() {
+        let f = YamlFormatter;
+        let yaml = "null_val: null\nbool_val: true\nint_val: 42\nfloat_val: 3.14\nstr_val: hello";
+        let result = f.deserialize(yaml).unwrap();
+        assert!(matches!(result.get("null_val").unwrap(), ConfigValue::Null));
+        assert_eq!(result.get("bool_val").unwrap().as_bool(), Some(true));
+        assert_eq!(result.get("int_val").unwrap().as_i64(), Some(42));
+        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.14));
+        assert_eq!(result.get("str_val").unwrap().as_str(), Some("hello"));
+    }
+
+    #[test]
+    fn test_deserialize_non_string_keys() {
+        let f = YamlFormatter;
+        let yaml = "42: int_key\ntrue: bool_key\n3.14: float_key";
+        let result = f.deserialize(yaml).unwrap();
+        assert_eq!(result.get("42").unwrap().as_str(), Some("int_key"));
+        assert_eq!(result.get("true").unwrap().as_str(), Some("bool_key"));
+        assert_eq!(result.get("3.14").unwrap().as_str(), Some("float_key"));
+    }
+
+    #[test]
+    fn test_deserialize_array() {
+        let f = YamlFormatter;
+        let result = f.deserialize("- 1\n- 2\n- 3").unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 3);
+    }
 }

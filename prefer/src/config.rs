@@ -456,4 +456,135 @@ mod tests {
         let cloned = config.clone();
         assert!(cloned.emitter.is_none());
     }
+
+    #[test]
+    fn test_clone_preserves_metadata() {
+        let config = Config::with_metadata(
+            ConfigValue::Null,
+            "/nonexistent/path.toml".into(),
+            "file".into(),
+            "toml".into(),
+        );
+        let cloned = config.clone();
+        assert_eq!(cloned.source(), Some("/nonexistent/path.toml"));
+        assert_eq!(cloned.loader_name(), Some("file"));
+        assert_eq!(cloned.formatter_name(), Some("toml"));
+    }
+
+    #[test]
+    fn test_debug_output() {
+        let config = Config::with_metadata(
+            ConfigValue::Integer(42),
+            "test.json".into(),
+            "file".into(),
+            "json".into(),
+        );
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("Config"));
+        assert!(debug.contains("loader_name"));
+        assert!(debug.contains("formatter_name"));
+        // emitter should NOT appear in debug output
+        assert!(!debug.contains("emitter"));
+    }
+
+    #[test]
+    fn test_with_metadata_nonexistent_path() {
+        let config = Config::with_metadata(
+            ConfigValue::Null,
+            "/this/path/does/not/exist.toml".into(),
+            "file".into(),
+            "toml".into(),
+        );
+        // source_path should be None for non-existent paths
+        assert!(config.source_path().is_none());
+        // but source string is still set
+        assert_eq!(config.source(), Some("/this/path/does/not/exist.toml"));
+    }
+
+    #[test]
+    fn test_new_config_has_no_metadata() {
+        let config = Config::new(ConfigValue::Null);
+        assert!(config.source_path().is_none());
+        assert!(config.source().is_none());
+        assert!(config.loader_name().is_none());
+        assert!(config.formatter_name().is_none());
+    }
+
+    #[test]
+    fn test_set_without_emitter() {
+        let mut config = Config::new(ConfigValue::Object(HashMap::new()));
+        // Should not panic when no emitter is attached
+        config.set("key", ConfigValue::Integer(42));
+        let val: i64 = config.get("key").unwrap();
+        assert_eq!(val, 42);
+    }
+
+    #[test]
+    fn test_set_overwrites_non_object() {
+        let mut config = Config::new(ConfigValue::Integer(0));
+        config.set("key", ConfigValue::String("value".into()));
+        let val: String = config.get("key").unwrap();
+        assert_eq!(val, "value");
+    }
+
+    #[test]
+    fn test_set_overwrites_nested_non_object() {
+        let mut config = Config::new(obj(vec![("a", ConfigValue::Integer(1))]));
+        // Setting a.b.c should replace integer "a" with an object
+        config.set("a.b.c", ConfigValue::String("deep".into()));
+        let val: String = config.get("a.b.c").unwrap();
+        assert_eq!(val, "deep");
+    }
+
+    #[test]
+    fn test_set_new_key_fires_with_none_previous() {
+        let mut config = Config::new(ConfigValue::Object(HashMap::new()));
+
+        let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log_clone = log.clone();
+        config.on_change(Box::new(move |key, _value, prev| {
+            log_clone
+                .lock()
+                .unwrap()
+                .push((key.to_string(), prev.cloned()));
+        }));
+
+        config.set("new_key", ConfigValue::Integer(1));
+
+        let entries = log.lock().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "new_key");
+        assert!(entries[0].1.is_none());
+    }
+
+    #[test]
+    fn test_data_and_data_mut() {
+        let mut config = Config::new(obj(vec![("x", ConfigValue::Integer(1))]));
+        assert!(config.data().as_object().is_some());
+
+        if let ConfigValue::Object(map) = config.data_mut() {
+            map.insert("y".to_string(), ConfigValue::Integer(2));
+        }
+        assert!(config.has_key("y"));
+    }
+
+    #[test]
+    fn test_get_value_non_object_intermediate() {
+        let config = Config::new(obj(vec![("a", ConfigValue::Integer(1))]));
+        // Trying to traverse through a non-object should fail
+        let result = config.get_value("a.b");
+        assert!(matches!(result, Err(Error::KeyNotFound(_))));
+    }
+
+    #[test]
+    fn test_with_source() {
+        let config = Config::with_source(
+            ConfigValue::Integer(42),
+            PathBuf::from("/tmp/test.json"),
+        );
+        assert_eq!(
+            config.source_path(),
+            Some(&PathBuf::from("/tmp/test.json"))
+        );
+    }
 }

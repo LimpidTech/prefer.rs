@@ -154,4 +154,93 @@ mod tests {
             "\"hi\""
         );
     }
+
+    #[test]
+    fn test_serialize_string_escaping() {
+        let f = JsonFormatter;
+        assert_eq!(
+            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            "\"say \\\"hi\\\"\""
+        );
+        assert_eq!(
+            f.serialize(&ConfigValue::String("back\\slash".into())).unwrap(),
+            "\"back\\\\slash\""
+        );
+    }
+
+    #[test]
+    fn test_serialize_array() {
+        let f = JsonFormatter;
+        let arr = ConfigValue::Array(vec![
+            ConfigValue::Integer(1),
+            ConfigValue::Bool(true),
+            ConfigValue::Null,
+        ]);
+        assert_eq!(f.serialize(&arr).unwrap(), "[1,true,null]");
+    }
+
+    #[test]
+    fn test_serialize_object() {
+        let f = JsonFormatter;
+        let mut map = HashMap::new();
+        map.insert("key".to_string(), ConfigValue::String("value".into()));
+        let obj = ConfigValue::Object(map);
+        assert_eq!(f.serialize(&obj).unwrap(), "{\"key\":\"value\"}");
+    }
+
+    #[test]
+    fn test_serialize_object_key_escaping() {
+        let f = JsonFormatter;
+        let mut map = HashMap::new();
+        map.insert("k\"ey".to_string(), ConfigValue::Integer(1));
+        let obj = ConfigValue::Object(map);
+        let serialized = f.serialize(&obj).unwrap();
+        assert!(serialized.contains("\"k\\\"ey\""));
+    }
+
+    #[test]
+    fn test_deserialize_null() {
+        let f = JsonFormatter;
+        let result = f.deserialize("null").unwrap();
+        assert!(matches!(result, ConfigValue::Null));
+    }
+
+    #[test]
+    fn test_deserialize_boolean() {
+        let f = JsonFormatter;
+        let result = f.deserialize(r#"{"flag": true}"#).unwrap();
+        assert_eq!(result.get("flag").unwrap().as_bool(), Some(true));
+
+        let result = f.deserialize(r#"{"flag": false}"#).unwrap();
+        assert_eq!(result.get("flag").unwrap().as_bool(), Some(false));
+    }
+
+    #[test]
+    fn test_deserialize_long_string() {
+        let f = JsonFormatter;
+        // jzon uses String (heap) for strings longer than ~30 chars
+        let long = "a]".repeat(50);
+        let json = format!(r#"{{"val": "{}"}}"#, long);
+        let result = f.deserialize(&json).unwrap();
+        assert_eq!(result.get("val").unwrap().as_str(), Some(long.as_str()));
+    }
+
+    #[test]
+    fn test_deserialize_float() {
+        let f = JsonFormatter;
+        let result = f.deserialize("3.14").unwrap();
+        assert_eq!(result.as_f64(), Some(3.14));
+    }
+
+    #[test]
+    fn test_deserialize_nested_object() {
+        let f = JsonFormatter;
+        let result = f
+            .deserialize(r#"{"a": {"b": {"c": 1}}}"#)
+            .unwrap();
+        assert_eq!(
+            result.get("a").unwrap().get("b").unwrap().get("c").unwrap().as_i64(),
+            Some(1)
+        );
+    }
 }

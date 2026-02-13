@@ -101,3 +101,24 @@ pub fn extension_matches(identifier: &str, extensions: &[&str]) -> bool {
 pub fn hint_matches(hint: &str, extensions: &[&str]) -> bool {
     extensions.iter().any(|ext| *ext == hint)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extension_matches() {
+        assert!(extension_matches("config.json", &["json", "json5"]));
+        assert!(extension_matches("config.json5", &["json", "json5"]));
+        assert!(!extension_matches("config.toml", &["json", "json5"]));
+        assert!(!extension_matches("no_extension", &["json"]));
+    }
+
+    #[test]
+    fn test_hint_matches() {
+        assert!(hint_matches("json", &["json", "json5", "jsonc"]));
+        assert!(hint_matches("toml", &["toml"]));
+        assert!(!hint_matches("bson", &["json", "toml"]));
+        assert!(!hint_matches("", &["json"]));
+    }
+}

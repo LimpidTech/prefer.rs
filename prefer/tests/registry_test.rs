@@ -199,3 +199,88 @@ fn test_config_on_change_fires() {
     assert_eq!(log[0], "a");
     assert_eq!(log[1], "b.c");
 }
+
+#[tokio::test]
+#[serial]
+async fn test_load_yaml_routes_correctly() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("settings.yaml");
+    let mut file = std::fs::File::create(&file_path).unwrap();
+    writeln!(file, "host: localhost\nport: 3000").unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let config = prefer::load("settings").await.unwrap();
+
+    let host: String = config.get("host").unwrap();
+    assert_eq!(host, "localhost");
+    assert_eq!(config.formatter_name(), Some("yaml"));
+    assert_eq!(config.loader_name(), Some("file"));
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+#[tokio::test]
+#[serial]
+async fn test_load_file_not_found() {
+    let temp_dir = TempDir::new().unwrap();
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let result = prefer::load("nonexistent_config").await;
+    assert!(result.is_err());
+
+    std::env::set_current_dir(original_dir).unwrap();
+}
+
+#[test]
+fn test_formatter_toml_roundtrip() {
+    let fmt = registry::find_formatter("test.toml").unwrap();
+    let data = fmt.deserialize("name = \"test\"\nport = 8080").unwrap();
+    let serialized = fmt.serialize(&data).unwrap();
+    let restored = fmt.deserialize(&serialized).unwrap();
+    assert_eq!(data, restored);
+}
+
+#[test]
+fn test_formatter_yaml_roundtrip() {
+    let fmt = registry::find_formatter("test.yaml").unwrap();
+    let data = fmt.deserialize("name: test\nport: 8080").unwrap();
+    let serialized = fmt.serialize(&data).unwrap();
+    let restored = fmt.deserialize(&serialized).unwrap();
+    assert_eq!(data, restored);
+}
+
+#[test]
+fn test_find_formatter_by_hint_ini() {
+    let fmt = registry::find_formatter_by_hint("ini");
+    assert!(fmt.is_some());
+    assert_eq!(fmt.unwrap().name(), "ini");
+}
+
+#[test]
+fn test_find_formatter_by_hint_xml() {
+    let fmt = registry::find_formatter_by_hint("xml");
+    assert!(fmt.is_some());
+    assert_eq!(fmt.unwrap().name(), "xml");
+}
+
+#[test]
+fn test_file_loader_provides_file_url() {
+    let loader = FileLoader::new();
+    assert!(loader.provides("file:///etc/myapp.toml"));
+    assert!(loader.provides("file://config.json"));
+}
+
+#[test]
+fn test_error_display_messages() {
+    let err = prefer::Error::NoLoaderFound("redis://host".into());
+    assert!(err.to_string().contains("redis://host"));
+
+    let err = prefer::Error::NoFormatterFound("config.bson".into());
+    assert!(err.to_string().contains("config.bson"));
+
+    let err = prefer::Error::WatchNotSupported("scheme://x".into());
+    assert!(err.to_string().contains("scheme://x"));
+}
