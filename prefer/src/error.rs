@@ -80,6 +80,30 @@ pub enum Error {
         source_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    /// No registered loader can handle the given identifier.
+    #[cfg(feature = "std")]
+    #[cfg_attr(
+        feature = "std",
+        error("No loader found for identifier: {0}")
+    )]
+    NoLoaderFound(String),
+
+    /// No registered formatter can handle the given source.
+    #[cfg(feature = "std")]
+    #[cfg_attr(
+        feature = "std",
+        error("No formatter found for source: {0}")
+    )]
+    NoFormatterFound(String),
+
+    /// The loader does not support watching for changes.
+    #[cfg(feature = "std")]
+    #[cfg_attr(
+        feature = "std",
+        error("Watching is not supported for: {0}")
+    )]
+    WatchNotSupported(String),
 }
 
 // Manual Display implementation for no_std

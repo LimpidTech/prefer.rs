@@ -52,6 +52,8 @@ pub mod builder;
 pub mod config;
 #[cfg(feature = "std")]
 pub mod discovery;
+#[cfg(feature = "std")]
+pub mod events;
 pub mod error;
 #[cfg(feature = "std")]
 pub mod formats;
