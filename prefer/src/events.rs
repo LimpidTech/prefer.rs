@@ -35,7 +35,13 @@ impl Emitter {
     }
 
     /// Emit an event, calling all registered handlers.
-    pub fn emit(&self, event: &str, key: &str, value: &ConfigValue, previous: Option<&ConfigValue>) {
+    pub fn emit(
+        &self,
+        event: &str,
+        key: &str,
+        value: &ConfigValue,
+        previous: Option<&ConfigValue>,
+    ) {
         let Some(handlers) = self.handlers.get(event) else {
             return;
         };
@@ -47,9 +53,7 @@ impl Emitter {
 
     /// Check if any handlers are registered for the given event.
     pub fn has_handlers(&self, event: &str) -> bool {
-        self.handlers
-            .get(event)
-            .is_some_and(|h| !h.is_empty())
+        self.handlers.get(event).is_some_and(|h| !h.is_empty())
     }
 }
 
@@ -70,16 +74,14 @@ mod tests {
         let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
         let log_clone = log.clone();
-        emitter.bind("changed", Box::new(move |key, _value, _prev| {
-            log_clone.lock().unwrap().push(key.to_string());
-        }));
-
-        emitter.emit(
+        emitter.bind(
             "changed",
-            "server.port",
-            &ConfigValue::Integer(8080),
-            None,
+            Box::new(move |key, _value, _prev| {
+                log_clone.lock().unwrap().push(key.to_string());
+            }),
         );
+
+        emitter.emit("changed", "server.port", &ConfigValue::Integer(8080), None);
 
         let entries = log.lock().unwrap();
         assert_eq!(entries.len(), 1);
@@ -92,11 +94,14 @@ mod tests {
         let saw_previous: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
         let flag = saw_previous.clone();
-        emitter.bind("changed", Box::new(move |_key, _value, prev| {
-            if let Some(ConfigValue::Integer(42)) = prev {
-                *flag.lock().unwrap() = true;
-            }
-        }));
+        emitter.bind(
+            "changed",
+            Box::new(move |_key, _value, prev| {
+                if let Some(ConfigValue::Integer(42)) = prev {
+                    *flag.lock().unwrap() = true;
+                }
+            }),
+        );
 
         emitter.emit(
             "changed",
@@ -122,9 +127,12 @@ mod tests {
 
         for _ in 0..3 {
             let c = count.clone();
-            emitter.bind("changed", Box::new(move |_, _, _| {
-                *c.lock().unwrap() += 1;
-            }));
+            emitter.bind(
+                "changed",
+                Box::new(move |_, _, _| {
+                    *c.lock().unwrap() += 1;
+                }),
+            );
         }
 
         emitter.emit("changed", "key", &ConfigValue::Null, None);

@@ -164,9 +164,7 @@ mod tests {
     #[test]
     fn test_deserialize() {
         let f = TomlFormatter;
-        let result = f
-            .deserialize("name = \"test\"\nport = 8080")
-            .unwrap();
+        let result = f.deserialize("name = \"test\"\nport = 8080").unwrap();
         assert_eq!(result.get("name").unwrap().as_str(), Some("test"));
         assert_eq!(result.get("port").unwrap().as_i64(), Some(8080));
     }
@@ -199,11 +197,13 @@ mod tests {
     fn test_serialize_string_escaping() {
         let f = TomlFormatter;
         assert_eq!(
-            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            f.serialize(&ConfigValue::String("say \"hi\"".into()))
+                .unwrap(),
             "\"say \\\"hi\\\"\""
         );
         assert_eq!(
-            f.serialize(&ConfigValue::String("back\\slash".into())).unwrap(),
+            f.serialize(&ConfigValue::String("back\\slash".into()))
+                .unwrap(),
             "\"back\\\\slash\""
         );
     }
@@ -286,7 +286,10 @@ date_val = 2024-01-15
         assert_eq!(result.get("int_val").unwrap().as_i64(), Some(42));
         assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.14));
         assert_eq!(result.get("str_val").unwrap().as_str(), Some("hello"));
-        assert_eq!(result.get("array_val").unwrap().as_array().unwrap().len(), 3);
+        assert_eq!(
+            result.get("array_val").unwrap().as_array().unwrap().len(),
+            3
+        );
         // Datetimes become strings
         assert!(result.get("date_val").unwrap().as_str().is_some());
     }

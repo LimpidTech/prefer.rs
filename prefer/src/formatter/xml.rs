@@ -150,9 +150,7 @@ mod tests {
     #[test]
     fn test_deserialize_attributes() {
         let f = XmlFormatter;
-        let result = f
-            .deserialize(r#"<root id="123">text</root>"#)
-            .unwrap();
+        let result = f.deserialize(r#"<root id="123">text</root>"#).unwrap();
         assert_eq!(result.get("@id").unwrap().as_str(), Some("123"));
         assert_eq!(result.get("#text").unwrap().as_str(), Some("text"));
     }

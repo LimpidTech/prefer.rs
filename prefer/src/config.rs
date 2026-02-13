@@ -404,7 +404,10 @@ mod tests {
     #[test]
     fn test_set_nested_creates_intermediates() {
         let mut config = Config::new(ConfigValue::Object(HashMap::new()));
-        config.set("server.database.host", ConfigValue::String("localhost".into()));
+        config.set(
+            "server.database.host",
+            ConfigValue::String("localhost".into()),
+        );
 
         let host: String = config.get("server.database.host").unwrap();
         assert_eq!(host, "localhost");
@@ -417,11 +420,10 @@ mod tests {
         let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let log_clone = log.clone();
         config.on_change(Box::new(move |key, value, prev| {
-            log_clone.lock().unwrap().push((
-                key.to_string(),
-                value.clone(),
-                prev.cloned(),
-            ));
+            log_clone
+                .lock()
+                .unwrap()
+                .push((key.to_string(), value.clone(), prev.cloned()));
         }));
 
         config.set("port", ConfigValue::Integer(9090));
@@ -578,13 +580,7 @@ mod tests {
 
     #[test]
     fn test_with_source() {
-        let config = Config::with_source(
-            ConfigValue::Integer(42),
-            PathBuf::from("/tmp/test.json"),
-        );
-        assert_eq!(
-            config.source_path(),
-            Some(&PathBuf::from("/tmp/test.json"))
-        );
+        let config = Config::with_source(ConfigValue::Integer(42), PathBuf::from("/tmp/test.json"));
+        assert_eq!(config.source_path(), Some(&PathBuf::from("/tmp/test.json")));
     }
 }

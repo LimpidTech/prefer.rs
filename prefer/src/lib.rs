@@ -52,9 +52,9 @@ pub mod builder;
 pub mod config;
 #[cfg(feature = "std")]
 pub mod discovery;
+pub mod error;
 #[cfg(feature = "std")]
 pub mod events;
-pub mod error;
 #[cfg(feature = "std")]
 pub mod formats;
 #[cfg(feature = "std")]
@@ -116,13 +116,16 @@ pub use prefer_derive::FromValue;
 /// ```
 #[cfg(feature = "std")]
 pub async fn load(identifier: &str) -> Result<Config> {
-    let loader = registry::find_loader(identifier)
-        .ok_or(Error::NoLoaderFound(identifier.to_string()))?;
+    let loader =
+        registry::find_loader(identifier).ok_or(Error::NoLoaderFound(identifier.to_string()))?;
 
     let result = loader.load(identifier).await?;
 
     let fmt = registry::find_formatter(&result.source)
-        .or(result.format_hint.as_deref().and_then(registry::find_formatter_by_hint))
+        .or(result
+            .format_hint
+            .as_deref()
+            .and_then(registry::find_formatter_by_hint))
         .ok_or(Error::NoFormatterFound(result.source.clone()))?;
 
     let data = fmt.deserialize(&result.content)?;
@@ -163,8 +166,8 @@ pub async fn load(identifier: &str) -> Result<Config> {
 /// ```
 #[cfg(feature = "std")]
 pub async fn watch(identifier: &str) -> Result<tokio::sync::mpsc::Receiver<Config>> {
-    let loader = registry::find_loader(identifier)
-        .ok_or(Error::NoLoaderFound(identifier.to_string()))?;
+    let loader =
+        registry::find_loader(identifier).ok_or(Error::NoLoaderFound(identifier.to_string()))?;
 
     loader
         .watch(identifier)

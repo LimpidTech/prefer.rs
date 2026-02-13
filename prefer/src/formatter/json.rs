@@ -158,11 +158,13 @@ mod tests {
     fn test_serialize_string_escaping() {
         let f = JsonFormatter;
         assert_eq!(
-            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            f.serialize(&ConfigValue::String("say \"hi\"".into()))
+                .unwrap(),
             "\"say \\\"hi\\\"\""
         );
         assert_eq!(
-            f.serialize(&ConfigValue::String("back\\slash".into())).unwrap(),
+            f.serialize(&ConfigValue::String("back\\slash".into()))
+                .unwrap(),
             "\"back\\\\slash\""
         );
     }
@@ -234,11 +236,16 @@ mod tests {
     #[test]
     fn test_deserialize_nested_object() {
         let f = JsonFormatter;
-        let result = f
-            .deserialize(r#"{"a": {"b": {"c": 1}}}"#)
-            .unwrap();
+        let result = f.deserialize(r#"{"a": {"b": {"c": 1}}}"#).unwrap();
         assert_eq!(
-            result.get("a").unwrap().get("b").unwrap().get("c").unwrap().as_i64(),
+            result
+                .get("a")
+                .unwrap()
+                .get("b")
+                .unwrap()
+                .get("c")
+                .unwrap()
+                .as_i64(),
             Some(1)
         );
     }

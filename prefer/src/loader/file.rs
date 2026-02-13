@@ -33,9 +33,7 @@ impl FileLoader {
     }
 
     async fn locate(&self, identifier: &str) -> Result<PathBuf> {
-        let stripped = identifier
-            .strip_prefix("file://")
-            .unwrap_or(identifier);
+        let stripped = identifier.strip_prefix("file://").unwrap_or(identifier);
         discovery::find_config_file(stripped).await
     }
 }

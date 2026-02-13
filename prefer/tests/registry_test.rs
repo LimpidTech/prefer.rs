@@ -170,7 +170,10 @@ fn test_formatter_deserialize_serialize_roundtrip() {
 fn test_config_set_and_get() {
     let mut config = prefer::Config::new(prefer::ConfigValue::Object(Default::default()));
 
-    config.set("server.host", prefer::ConfigValue::String("localhost".into()));
+    config.set(
+        "server.host",
+        prefer::ConfigValue::String("localhost".into()),
+    );
     config.set("server.port", prefer::ConfigValue::Integer(8080));
 
     let host: String = config.get("server.host").unwrap();

@@ -178,7 +178,8 @@ mod tests {
     fn test_serialize_string_escaping() {
         let f = YamlFormatter;
         assert_eq!(
-            f.serialize(&ConfigValue::String("say \"hi\"".into())).unwrap(),
+            f.serialize(&ConfigValue::String("say \"hi\"".into()))
+                .unwrap(),
             "\"say \\\"hi\\\"\""
         );
     }
@@ -193,10 +194,7 @@ mod tests {
     #[test]
     fn test_serialize_array() {
         let f = YamlFormatter;
-        let arr = ConfigValue::Array(vec![
-            ConfigValue::Integer(1),
-            ConfigValue::Integer(2),
-        ]);
+        let arr = ConfigValue::Array(vec![ConfigValue::Integer(1), ConfigValue::Integer(2)]);
         let serialized = f.serialize(&arr).unwrap();
         assert!(serialized.contains("- 1"));
         assert!(serialized.contains("- 2"));
