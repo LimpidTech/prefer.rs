@@ -54,7 +54,15 @@ pub mod config;
 pub mod discovery;
 pub mod error;
 #[cfg(feature = "std")]
+pub mod events;
+#[cfg(feature = "std")]
 pub mod formats;
+#[cfg(feature = "std")]
+pub mod formatter;
+#[cfg(feature = "std")]
+pub mod loader;
+#[cfg(feature = "std")]
+pub mod registry;
 #[cfg(feature = "std")]
 pub mod source;
 pub mod value;
@@ -73,25 +81,23 @@ pub use builder::ConfigBuilder;
 #[cfg(feature = "std")]
 pub use config::Config;
 #[cfg(feature = "std")]
+#[allow(deprecated)]
 pub use source::{EnvSource, FileSource, LayeredSource, MemorySource, Source};
 
 // Re-export the derive macro when the feature is enabled
 #[cfg(feature = "derive")]
 pub use prefer_derive::FromValue;
 
-/// Load a configuration file by name.
+/// Load a configuration by identifier.
 ///
-/// This function searches standard system paths for a configuration file
-/// matching the given name with any supported extension. The first file
-/// found is loaded and parsed according to its format.
+/// Routes through the plugin registry: finds a loader that can handle the
+/// identifier, loads the raw content, finds a formatter that can parse
+/// the content, and returns the parsed `Config`.
 ///
-/// # Arguments
-///
-/// * `name` - The base name of the configuration file (without path or extension)
-///
-/// # Returns
-///
-/// A `Config` instance containing the parsed configuration data.
+/// For bare names (e.g., `"myapp"`), the built-in `FileLoader` searches
+/// standard system paths. For scheme-based identifiers (e.g.,
+/// `"postgres://..."`), an external loader must be registered (e.g., via
+/// `prefer_db`).
 ///
 /// # Examples
 ///
@@ -109,22 +115,34 @@ pub use prefer_derive::FromValue;
 /// # }
 /// ```
 #[cfg(feature = "std")]
-pub async fn load(name: &str) -> Result<Config> {
-    Config::load(name).await
+pub async fn load(identifier: &str) -> Result<Config> {
+    let loader =
+        registry::find_loader(identifier).ok_or(Error::NoLoaderFound(identifier.to_string()))?;
+
+    let result = loader.load(identifier).await?;
+
+    let fmt = registry::find_formatter(&result.source)
+        .or(result
+            .format_hint
+            .as_deref()
+            .and_then(registry::find_formatter_by_hint))
+        .ok_or(Error::NoFormatterFound(result.source.clone()))?;
+
+    let data = fmt.deserialize(&result.content)?;
+
+    Ok(Config::with_metadata(
+        data,
+        result.source,
+        loader.name().to_string(),
+        fmt.name().to_string(),
+    ))
 }
 
-/// Watch a configuration file for changes.
+/// Watch a configuration source for changes.
 ///
-/// Returns a stream that yields new `Config` instances whenever the
-/// configuration file is modified on disk.
-///
-/// # Arguments
-///
-/// * `name` - The base name of the configuration file (without path or extension)
-///
-/// # Returns
-///
-/// A receiver channel that yields `Config` instances when the file changes.
+/// Routes through the plugin registry to find a loader that supports
+/// watching, then returns a receiver that yields new `Config` instances
+/// when the source changes.
 ///
 /// # Examples
 ///
@@ -147,6 +165,12 @@ pub async fn load(name: &str) -> Result<Config> {
 /// # }
 /// ```
 #[cfg(feature = "std")]
-pub async fn watch(name: &str) -> Result<tokio::sync::mpsc::Receiver<Config>> {
-    watch::watch(name).await
+pub async fn watch(identifier: &str) -> Result<tokio::sync::mpsc::Receiver<Config>> {
+    let loader =
+        registry::find_loader(identifier).ok_or(Error::NoLoaderFound(identifier.to_string()))?;
+
+    loader
+        .watch(identifier)
+        .await?
+        .ok_or(Error::WatchNotSupported(identifier.to_string()))
 }

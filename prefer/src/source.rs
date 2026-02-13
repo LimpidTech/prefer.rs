@@ -3,6 +3,11 @@
 //! This module provides the `Source` trait for abstracting configuration sources,
 //! allowing configuration to be loaded from files, environment variables, databases,
 //! or any other source.
+//!
+//! **Deprecated:** The `Source` trait is superseded by `Loader` + `Formatter`.
+//! `EnvSource`, `MemorySource`, and `LayeredSource` remain as layering utilities.
+
+#![allow(deprecated)] // Internal implementations still reference their own deprecated types
 
 use crate::error::{Error, Result};
 use crate::formats;
@@ -13,8 +18,13 @@ use std::path::{Path, PathBuf};
 
 /// A source of configuration data.
 ///
-/// Implementations of this trait can load configuration from various sources
-/// such as files, environment variables, databases, or remote services.
+/// **Deprecated:** Use the `Loader` trait instead. `Loader` participates in
+/// automatic plugin discovery via the registry, while `Source` requires
+/// manual construction and wiring. `Source` will be removed in a future
+/// major version.
+///
+/// `EnvSource` and `MemorySource` are not affected — they remain as
+/// layering utilities used by `ConfigBuilder`.
 ///
 /// # Examples
 ///
@@ -38,6 +48,10 @@ use std::path::{Path, PathBuf};
 ///     }
 /// }
 /// ```
+#[deprecated(
+    since = "0.4.0",
+    note = "Use the Loader trait instead. Source will be removed in a future version."
+)]
 #[async_trait]
 pub trait Source: Send + Sync {
     /// Load configuration data from this source.
@@ -48,6 +62,13 @@ pub trait Source: Send + Sync {
 }
 
 /// A configuration source that loads from a file.
+///
+/// **Deprecated:** Use `FileLoader` instead, which participates in
+/// automatic registry discovery.
+#[deprecated(
+    since = "0.4.0",
+    note = "Use prefer::loader::file::FileLoader instead."
+)]
 pub struct FileSource {
     path: PathBuf,
 }
@@ -291,9 +312,19 @@ fn merge_values(base: &mut ConfigValue, overlay: ConfigValue) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+    use tempfile::TempDir;
 
     fn obj(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
         ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    }
+
+    fn int(i: i64) -> ConfigValue {
+        ConfigValue::Integer(i)
+    }
+
+    fn bool_val(b: bool) -> ConfigValue {
+        ConfigValue::Bool(b)
     }
 
     #[tokio::test]
@@ -420,5 +451,181 @@ mod tests {
         assert_eq!(base.get("b").unwrap().get("c").unwrap().as_i64(), Some(20));
         assert_eq!(base.get("b").unwrap().get("d").unwrap().as_i64(), Some(3));
         assert_eq!(base.get("e").unwrap().as_i64(), Some(5));
+    }
+
+    #[tokio::test]
+    async fn test_file_source_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("source.json");
+        std::fs::write(&config_path, r#"{"source": "file"}"#).unwrap();
+
+        let source = FileSource::new(&config_path);
+        assert_eq!(source.path(), config_path);
+        assert!(source.name().contains("source.json"));
+
+        let value = source.load().await.unwrap();
+        assert_eq!(value.get("source").unwrap().as_str(), Some("file"));
+    }
+
+    #[tokio::test]
+    async fn test_file_source_not_found() {
+        let source = FileSource::new("/nonexistent/path.json");
+        assert!(source.load().await.is_err());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_env_source_load() {
+        std::env::set_var("PREFERTEST__DB__HOST", "localhost");
+        std::env::set_var("PREFERTEST__DB__PORT", "5432");
+        std::env::set_var("PREFERTEST__DEBUG", "true");
+
+        let source = EnvSource::new("PREFERTEST");
+        assert_eq!(source.name(), "PREFERTEST");
+
+        let value = source.load().await.unwrap();
+        assert_eq!(
+            value.get("db").unwrap().get("host").unwrap().as_str(),
+            Some("localhost")
+        );
+        assert_eq!(
+            value.get("db").unwrap().get("port").unwrap().as_i64(),
+            Some(5432)
+        );
+        assert_eq!(value.get("debug").unwrap().as_bool(), Some(true));
+
+        std::env::remove_var("PREFERTEST__DB__HOST");
+        std::env::remove_var("PREFERTEST__DB__PORT");
+        std::env::remove_var("PREFERTEST__DEBUG");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_env_source_with_separator() {
+        std::env::set_var("PREFERSEP_DB_HOST", "dbhost");
+
+        let source = EnvSource::with_separator("PREFERSEP", "_");
+        let value = source.load().await.unwrap();
+        assert_eq!(
+            value.get("db").unwrap().get("host").unwrap().as_str(),
+            Some("dbhost")
+        );
+
+        std::env::remove_var("PREFERSEP_DB_HOST");
+    }
+
+    #[tokio::test]
+    async fn test_env_source_empty() {
+        let source = EnvSource::new("NONEXISTENT_PREFIX_XYZ123");
+        let value = source.load().await.unwrap();
+        assert!(value.as_object().map(|o| o.is_empty()).unwrap_or(false));
+    }
+
+    #[tokio::test]
+    async fn test_memory_source_coverage() {
+        let data = obj(vec![("memory", ConfigValue::Bool(true))]);
+        let source = MemorySource::new(data.clone());
+        assert_eq!(source.name(), "memory");
+
+        let loaded = source.load().await.unwrap();
+        assert_eq!(loaded, data);
+    }
+
+    #[tokio::test]
+    async fn test_memory_source_with_name() {
+        let source = MemorySource::with_name(obj(vec![]), "custom");
+        assert_eq!(source.name(), "custom");
+    }
+
+    #[tokio::test]
+    async fn test_layered_source_override() {
+        let base = MemorySource::with_name(obj(vec![("a", int(1)), ("b", int(2))]), "base");
+        let overlay = MemorySource::with_name(obj(vec![("b", int(20)), ("c", int(3))]), "overlay");
+
+        let layered = LayeredSource::new().with_source(base).with_source(overlay);
+        assert_eq!(layered.name(), "layered");
+
+        let value = layered.load().await.unwrap();
+        assert_eq!(value.get("a").unwrap().as_i64(), Some(1));
+        assert_eq!(value.get("b").unwrap().as_i64(), Some(20));
+        assert_eq!(value.get("c").unwrap().as_i64(), Some(3));
+    }
+
+    #[tokio::test]
+    async fn test_layered_source_default() {
+        let layered = LayeredSource::default();
+        let value = layered.load().await.unwrap();
+        assert!(value.as_object().map(|o| o.is_empty()).unwrap_or(false));
+    }
+
+    #[tokio::test]
+    async fn test_layered_source_add_boxed() {
+        let source: Box<dyn Source> =
+            Box::new(MemorySource::new(obj(vec![("boxed", bool_val(true))])));
+        let layered = LayeredSource::new().add_boxed(source);
+        let value = layered.load().await.unwrap();
+        assert_eq!(value.get("boxed").unwrap().as_bool(), Some(true));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_env_source_float_parsing() {
+        std::env::set_var("ENVFLOAT__VALUE", "1.5");
+
+        let source = EnvSource::new("ENVFLOAT");
+        let value = source.load().await.unwrap();
+        assert!((value.get("value").unwrap().as_f64().unwrap() - 1.5).abs() < 0.001);
+
+        std::env::remove_var("ENVFLOAT__VALUE");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_env_source_nan_float() {
+        std::env::set_var("ENVNAN__VALUE", "not_a_number_at_all");
+
+        let source = EnvSource::new("ENVNAN");
+        let value = source.load().await.unwrap();
+        assert_eq!(
+            value.get("value").unwrap().as_str(),
+            Some("not_a_number_at_all")
+        );
+
+        std::env::remove_var("ENVNAN__VALUE");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_env_source_false_boolean() {
+        std::env::set_var("ENVBOOL__ENABLED", "false");
+        std::env::set_var("ENVBOOL__DISABLED", "FALSE");
+
+        let source = EnvSource::new("ENVBOOL");
+        let value = source.load().await.unwrap();
+        assert_eq!(value.get("enabled").unwrap().as_bool(), Some(false));
+        assert_eq!(value.get("disabled").unwrap().as_bool(), Some(false));
+
+        std::env::remove_var("ENVBOOL__ENABLED");
+        std::env::remove_var("ENVBOOL__DISABLED");
+    }
+
+    #[tokio::test]
+    async fn test_layered_source_error_propagation() {
+        struct FailingSource;
+
+        #[async_trait]
+        impl Source for FailingSource {
+            async fn load(&self) -> Result<ConfigValue> {
+                Err(Error::FileNotFound("test".into()))
+            }
+
+            fn name(&self) -> &str {
+                "failing"
+            }
+        }
+
+        let layered = LayeredSource::new().with_source(FailingSource);
+        let result = layered.load().await;
+        assert!(matches!(result.unwrap_err(), Error::SourceError { .. }));
     }
 }

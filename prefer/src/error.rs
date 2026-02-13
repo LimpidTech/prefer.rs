@@ -80,6 +80,21 @@ pub enum Error {
         source_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    /// No registered loader can handle the given identifier.
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("No loader found for identifier: {0}"))]
+    NoLoaderFound(String),
+
+    /// No registered formatter can handle the given source.
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("No formatter found for source: {0}"))]
+    NoFormatterFound(String),
+
+    /// The loader does not support watching for changes.
+    #[cfg(feature = "std")]
+    #[cfg_attr(feature = "std", error("Watching is not supported for: {0}"))]
+    WatchNotSupported(String),
 }
 
 // Manual Display implementation for no_std
@@ -141,5 +156,59 @@ mod tests {
         let err = Error::FileNotFound("test.json".into());
         let result = err.with_key("ignored");
         assert!(matches!(result, Error::FileNotFound(s) if s == "test.json"));
+    }
+
+    #[test]
+    fn test_display_no_loader_found() {
+        let err = Error::NoLoaderFound("postgres://localhost".into());
+        let msg = err.to_string();
+        assert!(msg.contains("No loader found"));
+        assert!(msg.contains("postgres://localhost"));
+    }
+
+    #[test]
+    fn test_display_no_formatter_found() {
+        let err = Error::NoFormatterFound("config.bson".into());
+        let msg = err.to_string();
+        assert!(msg.contains("No formatter found"));
+        assert!(msg.contains("config.bson"));
+    }
+
+    #[test]
+    fn test_display_watch_not_supported() {
+        let err = Error::WatchNotSupported("redis://localhost".into());
+        let msg = err.to_string();
+        assert!(msg.contains("not supported"));
+        assert!(msg.contains("redis://localhost"));
+    }
+
+    #[test]
+    fn test_display_file_not_found() {
+        let err = Error::FileNotFound("missing.toml".into());
+        assert!(err.to_string().contains("missing.toml"));
+    }
+
+    #[test]
+    fn test_display_key_not_found() {
+        let err = Error::KeyNotFound("server.port".into());
+        assert!(err.to_string().contains("server.port"));
+    }
+
+    #[test]
+    fn test_display_conversion_error() {
+        let err = Error::ConversionError {
+            key: "port".into(),
+            type_name: "u16".into(),
+            source: "out of range".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("port"));
+        assert!(msg.contains("u16"));
+    }
+
+    #[test]
+    fn test_display_unsupported_format() {
+        let err = Error::UnsupportedFormat(PathBuf::from("config.bson"));
+        assert!(err.to_string().contains("config.bson"));
     }
 }

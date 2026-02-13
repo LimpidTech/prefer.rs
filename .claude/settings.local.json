@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(cargo test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo llvm-cov:*)",
+      "Bash(cargo tarpaulin:*)",
+      "Bash(grcov:*)",
+      "Bash(git status:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
