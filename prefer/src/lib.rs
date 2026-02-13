@@ -60,6 +60,8 @@ pub mod formatter;
 #[cfg(feature = "std")]
 pub mod loader;
 #[cfg(feature = "std")]
+pub mod registry;
+#[cfg(feature = "std")]
 pub mod source;
 pub mod value;
 pub mod visitor;

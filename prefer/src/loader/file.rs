@@ -8,10 +8,13 @@ use crate::discovery;
 use crate::error::Result;
 use crate::formats;
 use crate::loader::{LoadResult, Loader};
+use crate::registry::RegisteredLoader;
 use crate::watch as watch_mod;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
+
+inventory::submit! { RegisteredLoader(&FileLoader) }
 
 /// Loader for file-based configuration sources.
 ///

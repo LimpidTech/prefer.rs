@@ -2,8 +2,11 @@
 
 use crate::error::{Error, Result};
 use crate::formatter::{extension_matches, Formatter};
+use crate::registry::RegisteredFormatter;
 use crate::value::ConfigValue;
 use std::collections::HashMap;
+
+inventory::submit! { RegisteredFormatter(&JsonFormatter) }
 
 /// Formatter for JSON, JSON5, and JSONC files.
 ///
