@@ -247,23 +247,23 @@ mod tests {
     #[test]
     fn test_deserialize_all_value_types() {
         let f = YamlFormatter;
-        let yaml = "null_val: null\nbool_val: true\nint_val: 42\nfloat_val: 3.14\nstr_val: hello";
+        let yaml = "null_val: null\nbool_val: true\nint_val: 42\nfloat_val: 3.15\nstr_val: hello";
         let result = f.deserialize(yaml).unwrap();
         assert!(matches!(result.get("null_val").unwrap(), ConfigValue::Null));
         assert_eq!(result.get("bool_val").unwrap().as_bool(), Some(true));
         assert_eq!(result.get("int_val").unwrap().as_i64(), Some(42));
-        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.14));
+        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.15));
         assert_eq!(result.get("str_val").unwrap().as_str(), Some("hello"));
     }
 
     #[test]
     fn test_deserialize_non_string_keys() {
         let f = YamlFormatter;
-        let yaml = "42: int_key\ntrue: bool_key\n3.14: float_key";
+        let yaml = "42: int_key\ntrue: bool_key\n3.15: float_key";
         let result = f.deserialize(yaml).unwrap();
         assert_eq!(result.get("42").unwrap().as_str(), Some("int_key"));
         assert_eq!(result.get("true").unwrap().as_str(), Some("bool_key"));
-        assert_eq!(result.get("3.14").unwrap().as_str(), Some("float_key"));
+        assert_eq!(result.get("3.15").unwrap().as_str(), Some("float_key"));
     }
 
     #[test]

@@ -229,8 +229,8 @@ mod tests {
     #[test]
     fn test_deserialize_float() {
         let f = JsonFormatter;
-        let result = f.deserialize("3.14").unwrap();
-        assert_eq!(result.as_f64(), Some(3.14));
+        let result = f.deserialize("3.15").unwrap();
+        assert_eq!(result.as_f64(), Some(3.15));
     }
 
     #[test]
