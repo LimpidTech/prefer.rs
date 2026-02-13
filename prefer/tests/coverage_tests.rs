@@ -1,7 +1,5 @@
 //! Comprehensive tests for 100% code coverage.
 
-#![allow(deprecated)]
-
 use async_trait::async_trait;
 use prefer::value::FromValue;
 use prefer::visitor::{visit, FromValueVisitor, MapAccess, ValueVisitor};

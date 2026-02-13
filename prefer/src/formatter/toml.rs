@@ -186,7 +186,7 @@ mod tests {
     fn test_serialize_all_scalar_types() {
         let f = TomlFormatter;
         assert_eq!(f.serialize(&ConfigValue::Null).unwrap(), "\"\"");
-        assert_eq!(f.serialize(&ConfigValue::Float(3.15)).unwrap(), "3.15");
+        assert_eq!(f.serialize(&ConfigValue::Float(3.14)).unwrap(), "3.14");
         assert_eq!(
             f.serialize(&ConfigValue::String("hello".into())).unwrap(),
             "\"hello\""
@@ -276,7 +276,7 @@ port = 9090
         let toml = r#"
 bool_val = true
 int_val = 42
-float_val = 3.15
+float_val = 3.14
 str_val = "hello"
 array_val = [1, 2, 3]
 date_val = 2024-01-15
@@ -284,7 +284,7 @@ date_val = 2024-01-15
         let result = f.deserialize(toml).unwrap();
         assert_eq!(result.get("bool_val").unwrap().as_bool(), Some(true));
         assert_eq!(result.get("int_val").unwrap().as_i64(), Some(42));
-        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.15));
+        assert_eq!(result.get("float_val").unwrap().as_f64(), Some(3.14));
         assert_eq!(result.get("str_val").unwrap().as_str(), Some("hello"));
         assert_eq!(
             result.get("array_val").unwrap().as_array().unwrap().len(),
