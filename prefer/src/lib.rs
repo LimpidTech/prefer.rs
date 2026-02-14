@@ -56,8 +56,6 @@ pub mod error;
 #[cfg(feature = "std")]
 pub mod events;
 #[cfg(feature = "std")]
-pub mod formats;
-#[cfg(feature = "std")]
 pub mod formatter;
 #[cfg(feature = "std")]
 pub mod loader;
@@ -96,8 +94,7 @@ pub use prefer_derive::FromValue;
 ///
 /// For bare names (e.g., `"myapp"`), the built-in `FileLoader` searches
 /// standard system paths. For scheme-based identifiers (e.g.,
-/// `"postgres://..."`), an external loader must be registered (e.g., via
-/// `prefer_db`).
+/// `"postgres://..."`), a `DbLoader` must be registered via inventory.
 ///
 /// # Examples
 ///
@@ -119,22 +116,14 @@ pub async fn load(identifier: &str) -> Result<Config> {
     let loader =
         registry::find_loader(identifier).ok_or(Error::NoLoaderFound(identifier.to_string()))?;
 
-    let result = loader.load(identifier).await?;
+    let formatters = registry::collect_formatters();
 
-    let fmt = registry::find_formatter(&result.source)
-        .or(result
-            .format_hint
-            .as_deref()
-            .and_then(registry::find_formatter_by_hint))
-        .ok_or(Error::NoFormatterFound(result.source.clone()))?;
-
-    let data = fmt.deserialize(&result.content)?;
+    let result = loader.load(identifier, &formatters).await?;
 
     Ok(Config::with_metadata(
-        data,
+        result.data,
         result.source,
         loader.name().to_string(),
-        fmt.name().to_string(),
     ))
 }
 

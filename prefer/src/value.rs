@@ -541,28 +541,38 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(crate) mod test_helpers {
+    use super::ConfigValue;
 
-    fn int(n: i64) -> ConfigValue {
+    pub fn obj(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
+        ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    }
+
+    pub fn int(n: i64) -> ConfigValue {
         ConfigValue::Integer(n)
     }
 
-    fn float(n: f64) -> ConfigValue {
+    pub fn float(n: f64) -> ConfigValue {
         ConfigValue::Float(n)
     }
 
-    fn string(s: &str) -> ConfigValue {
+    pub fn string(s: &str) -> ConfigValue {
         ConfigValue::String(s.to_string())
     }
 
-    fn array(items: Vec<ConfigValue>) -> ConfigValue {
+    pub fn array(items: Vec<ConfigValue>) -> ConfigValue {
         ConfigValue::Array(items)
     }
 
-    fn object(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
-        ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    pub fn bool_val(b: bool) -> ConfigValue {
+        ConfigValue::Bool(b)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_helpers::*;
+    use super::*;
 
     #[test]
     fn test_from_value_bool() {
@@ -608,21 +618,21 @@ mod tests {
     #[test]
     fn test_from_value_hashmap() {
         let result: HashMap<String, i32> =
-            HashMap::from_value(&object(vec![("a", int(1)), ("b", int(2))])).unwrap();
+            HashMap::from_value(&obj(vec![("a", int(1)), ("b", int(2))])).unwrap();
         assert_eq!(result.get("a"), Some(&1));
         assert_eq!(result.get("b"), Some(&2));
     }
 
     #[test]
     fn test_from_value_config_value() {
-        let value = object(vec![("nested", ConfigValue::Bool(true))]);
+        let value = obj(vec![("nested", ConfigValue::Bool(true))]);
         let result = ConfigValue::from_value(&value).unwrap();
         assert_eq!(result, value);
     }
 
     #[test]
     fn test_config_value_accessors() {
-        let obj = object(vec![
+        let obj = obj(vec![
             ("name", string("test")),
             ("count", int(42)),
             ("enabled", ConfigValue::Bool(true)),
@@ -655,9 +665,9 @@ mod tests {
     }
 
     #[test]
-    fn test_config_value_display_object() {
+    fn test_config_value_display_obj() {
         // Note: HashMap iteration order is not guaranteed, so test single-element
-        let obj = object(vec![("key", int(42))]);
+        let obj = obj(vec![("key", int(42))]);
         assert_eq!(format!("{}", obj), "{\"key\": 42}");
 
         // Empty object
@@ -725,7 +735,7 @@ mod tests {
 
     #[test]
     fn test_get_mut() {
-        let mut obj = object(vec![("key", int(1))]);
+        let mut obj = obj(vec![("key", int(1))]);
         if let Some(v) = obj.get_mut("key") {
             *v = int(42);
         }
@@ -747,7 +757,7 @@ mod tests {
         assert_eq!(float(1.0).type_name(), "float");
         assert_eq!(string("").type_name(), "string");
         assert_eq!(array(vec![]).type_name(), "array");
-        assert_eq!(object(vec![]).type_name(), "object");
+        assert_eq!(obj(vec![]).type_name(), "object");
     }
 
     #[test]
@@ -831,19 +841,19 @@ mod tests {
     }
 
     #[test]
-    fn test_as_object_non_object() {
+    fn test_as_object_non_obj() {
         assert!(int(42).as_object().is_none());
         assert!(array(vec![]).as_object().is_none());
     }
 
     #[test]
-    fn test_as_object_mut_non_object() {
+    fn test_as_object_mut_non_obj() {
         let mut arr = array(vec![]);
         assert!(arr.as_object_mut().is_none());
     }
 
     #[test]
-    fn test_get_on_non_object() {
+    fn test_get_on_non_obj() {
         assert!(int(42).get("key").is_none());
     }
 

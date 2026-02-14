@@ -96,10 +96,6 @@ fn toml_value_to_config_value(value: &toml_edit::Value) -> ConfigValue {
     }
 }
 
-fn toml_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
 fn toml_full_key(prefix: &str, key: &str) -> String {
     if prefix.is_empty() {
         key.to_string()
@@ -114,7 +110,7 @@ fn config_value_to_toml(value: &ConfigValue, key_prefix: &str) -> String {
         ConfigValue::Bool(b) => b.to_string(),
         ConfigValue::Integer(i) => i.to_string(),
         ConfigValue::Float(f) => f.to_string(),
-        ConfigValue::String(s) => format!("\"{}\"", toml_escape(s)),
+        ConfigValue::String(s) => format!("\"{}\"", super::escape_quotes(s)),
         ConfigValue::Array(arr) => {
             let items: Vec<String> = arr
                 .iter()

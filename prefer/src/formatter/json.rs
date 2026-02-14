@@ -71,12 +71,12 @@ fn jzon_to_config_value(value: jzon::JsonValue) -> ConfigValue {
     }
 }
 
-fn json_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
 fn json_entry((k, v): (&String, &ConfigValue)) -> String {
-    format!("\"{}\":{}", json_escape(k), config_value_to_json(v))
+    format!(
+        "\"{}\":{}",
+        super::escape_quotes(k),
+        config_value_to_json(v)
+    )
 }
 
 fn config_value_to_json(value: &ConfigValue) -> String {
@@ -85,7 +85,7 @@ fn config_value_to_json(value: &ConfigValue) -> String {
         ConfigValue::Bool(b) => b.to_string(),
         ConfigValue::Integer(i) => i.to_string(),
         ConfigValue::Float(f) => f.to_string(),
-        ConfigValue::String(s) => format!("\"{}\"", json_escape(s)),
+        ConfigValue::String(s) => format!("\"{}\"", super::escape_quotes(s)),
         ConfigValue::Array(arr) => {
             let items: Vec<String> = arr.iter().map(config_value_to_json).collect();
             format!("[{}]", items.join(","))

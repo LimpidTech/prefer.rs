@@ -23,6 +23,14 @@ pub struct RegisteredFormatter(pub &'static dyn Formatter);
 inventory::collect!(RegisteredLoader);
 inventory::collect!(RegisteredFormatter);
 
+/// Collect all registered formatters from the inventory.
+pub fn collect_formatters() -> Vec<&'static dyn Formatter> {
+    inventory::iter::<RegisteredFormatter>
+        .into_iter()
+        .map(|r| r.0)
+        .collect()
+}
+
 /// Find a loader that can handle the given identifier.
 ///
 /// Iterates over all registered loaders and returns the first one whose

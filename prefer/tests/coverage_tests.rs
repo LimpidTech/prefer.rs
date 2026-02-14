@@ -149,72 +149,77 @@ async fn test_find_config_file_not_found() {
 }
 
 // ============================================================================
-// formats.rs - Parse error paths
+// Formatter deserialize error paths
 // ============================================================================
+
+fn find_fmt(source: &str) -> Option<&'static dyn prefer::formatter::Formatter> {
+    prefer::registry::find_formatter(source)
+}
 
 #[test]
 fn test_parse_invalid_json() {
-    let result = prefer::formats::parse("{ invalid json", &PathBuf::from("test.json"));
+    let fmt = find_fmt("test.json").unwrap();
+    let result = fmt.deserialize("{ invalid json");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[test]
 fn test_parse_invalid_yaml() {
-    let result = prefer::formats::parse("key: [unclosed", &PathBuf::from("test.yaml"));
+    let fmt = find_fmt("test.yaml").unwrap();
+    let result = fmt.deserialize("key: [unclosed");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[test]
 fn test_parse_invalid_toml() {
-    let result = prefer::formats::parse("key = [unclosed", &PathBuf::from("test.toml"));
+    let fmt = find_fmt("test.toml").unwrap();
+    let result = fmt.deserialize("key = [unclosed");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[test]
 fn test_parse_invalid_json5() {
-    let result = prefer::formats::parse("{ invalid", &PathBuf::from("test.json5"));
+    let fmt = find_fmt("test.json5").unwrap();
+    let result = fmt.deserialize("{ invalid");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[test]
 fn test_parse_invalid_jsonc() {
-    let result = prefer::formats::parse("{ invalid", &PathBuf::from("test.jsonc"));
+    let fmt = find_fmt("test.jsonc").unwrap();
+    let result = fmt.deserialize("{ invalid");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[test]
 fn test_parse_yml_extension() {
-    let result = prefer::formats::parse("key: value", &PathBuf::from("test.yml"));
+    let fmt = find_fmt("test.yml").unwrap();
+    let result = fmt.deserialize("key: value");
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_parse_yaml_with_null_key() {
-    // YAML allows null as a key, which we skip (line 143 in formats.rs)
+    let fmt = find_fmt("test.yaml").unwrap();
     let yaml = "~: value\nvalid_key: other";
-    let result = prefer::formats::parse(yaml, &PathBuf::from("test.yaml")).unwrap();
-    // The null key should be skipped, but valid_key should be present
+    let result = fmt.deserialize(yaml).unwrap();
     assert!(result.get("valid_key").is_some());
-    // There's no way to access a null key since our get() takes &str
 }
 
 #[cfg(feature = "ini")]
 #[test]
 fn test_parse_invalid_ini() {
-    // Invalid INI should return a ParseError (lines 228-230)
-    // Note: rust-ini is very lenient, but we can try malformed input
-    // Actually rust-ini accepts almost anything, so let's test the error path differently
-    let result = prefer::formats::parse("[unclosed", &PathBuf::from("test.ini"));
-    // rust-ini may or may not error on this, so just verify we handle it
-    let _ = result; // Either Ok or Err is fine, as long as we don't panic
+    let fmt = find_fmt("test.ini").unwrap();
+    let result = fmt.deserialize("[unclosed");
+    let _ = result;
 }
 
 #[cfg(feature = "ini")]
 #[test]
 fn test_parse_ini_with_float() {
+    let fmt = find_fmt("test.ini").unwrap();
     let ini = "[section]\nvalue = 1.5";
-    let result = prefer::formats::parse(ini, &PathBuf::from("test.ini")).unwrap();
-    // Check it parses as float
+    let result = fmt.deserialize(ini).unwrap();
     assert!(result
         .get("section")
         .unwrap()
@@ -227,8 +232,9 @@ fn test_parse_ini_with_float() {
 #[cfg(feature = "ini")]
 #[test]
 fn test_parse_ini_with_bool() {
+    let fmt = find_fmt("test.ini").unwrap();
     let ini = "[section]\nenabled = true";
-    let result = prefer::formats::parse(ini, &PathBuf::from("test.ini")).unwrap();
+    let result = fmt.deserialize(ini).unwrap();
     assert_eq!(
         result
             .get("section")
@@ -243,8 +249,9 @@ fn test_parse_ini_with_bool() {
 #[cfg(feature = "ini")]
 #[test]
 fn test_parse_ini_with_string() {
+    let fmt = find_fmt("test.ini").unwrap();
     let ini = "[section]\nname = hello world";
-    let result = prefer::formats::parse(ini, &PathBuf::from("test.ini")).unwrap();
+    let result = fmt.deserialize(ini).unwrap();
     assert_eq!(
         result.get("section").unwrap().get("name").unwrap().as_str(),
         Some("hello world")
@@ -254,9 +261,9 @@ fn test_parse_ini_with_string() {
 #[cfg(feature = "ini")]
 #[test]
 fn test_parse_ini_default_section() {
-    // Properties without a section go to "default"
+    let fmt = find_fmt("test.ini").unwrap();
     let ini = "key = value";
-    let result = prefer::formats::parse(ini, &PathBuf::from("test.ini")).unwrap();
+    let result = fmt.deserialize(ini).unwrap();
     assert_eq!(
         result.get("default").unwrap().get("key").unwrap().as_str(),
         Some("value")
@@ -266,28 +273,28 @@ fn test_parse_ini_default_section() {
 #[cfg(feature = "xml")]
 #[test]
 fn test_parse_invalid_xml() {
-    let result = prefer::formats::parse("<unclosed>", &PathBuf::from("test.xml"));
+    let fmt = find_fmt("test.xml").unwrap();
+    let result = fmt.deserialize("<unclosed>");
     assert!(matches!(result.unwrap_err(), Error::ParseError { .. }));
 }
 
 #[cfg(feature = "xml")]
 #[test]
 fn test_parse_valid_xml() {
+    let fmt = find_fmt("test.xml").unwrap();
     let xml = "<root><key>value</key></root>";
-    let result = prefer::formats::parse(xml, &PathBuf::from("test.xml"));
+    let result = fmt.deserialize(xml);
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_parse_no_extension() {
-    let result = prefer::formats::parse("content", &PathBuf::from("noextension"));
-    assert!(matches!(result.unwrap_err(), Error::UnsupportedFormat(_)));
+    assert!(find_fmt("noextension").is_none());
 }
 
 #[test]
 fn test_parse_unknown_extension() {
-    let result = prefer::formats::parse("content", &PathBuf::from("test.xyz"));
-    assert!(matches!(result.unwrap_err(), Error::UnsupportedFormat(_)));
+    assert!(find_fmt("test.xyz").is_none());
 }
 
 // ============================================================================

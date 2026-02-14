@@ -136,10 +136,7 @@ impl Source for OptionalFileSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn obj(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
-        ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
-    }
+    use crate::value::test_helpers::obj;
 
     #[tokio::test]
     async fn test_builder_with_defaults() {
