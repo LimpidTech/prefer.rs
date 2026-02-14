@@ -95,6 +95,11 @@ pub fn extension_matches(identifier: &str, extensions: &[&str]) -> bool {
     extensions.contains(&ext)
 }
 
+/// Escape backslashes and double quotes in a string for serialization.
+pub(crate) fn escape_quotes(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// Check whether a format hint string matches any of the given extensions.
 ///
 /// Used when matching by format hint rather than file extension.

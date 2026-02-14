@@ -89,7 +89,7 @@ fn config_value_to_yaml(value: &ConfigValue, indent: usize) -> String {
         ConfigValue::Bool(b) => b.to_string(),
         ConfigValue::Integer(i) => i.to_string(),
         ConfigValue::Float(f) => f.to_string(),
-        ConfigValue::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+        ConfigValue::String(s) => format!("\"{}\"", super::escape_quotes(s)),
         ConfigValue::Array(arr) => {
             if arr.is_empty() {
                 return "[]".to_string();

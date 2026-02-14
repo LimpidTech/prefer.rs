@@ -5,7 +5,8 @@
 
 use crate::config::Config;
 use crate::discovery;
-use crate::error::Result;
+use crate::error::{Error, Result};
+use crate::formatter::Formatter;
 use crate::loader::{LoadResult, Loader};
 use crate::registry::RegisteredLoader;
 use crate::watch as watch_mod;
@@ -60,15 +61,18 @@ impl Loader for FileLoader {
         true
     }
 
-    async fn load(&self, identifier: &str) -> Result<LoadResult> {
+    async fn load(&self, identifier: &str, formatters: &[&dyn Formatter]) -> Result<LoadResult> {
         let path = self.locate(identifier).await?;
         let content = tokio::fs::read_to_string(&path).await?;
+        let source = path.to_string_lossy().to_string();
 
-        Ok(LoadResult {
-            source: path.to_string_lossy().to_string(),
-            content,
-            format_hint: None,
-        })
+        let fmt = formatters
+            .iter()
+            .find(|f| f.provides(&source))
+            .ok_or_else(|| Error::UnsupportedFormat(path))?;
+        let data = fmt.deserialize(&content)?;
+
+        Ok(LoadResult { source, data })
     }
 
     fn name(&self) -> &str {
@@ -85,6 +89,7 @@ impl Loader for FileLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry;
     use serial_test::serial;
     use std::io::Write;
     use tempfile::TempDir;
@@ -130,12 +135,12 @@ mod tests {
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
+        let formatters = registry::collect_formatters();
         let loader = FileLoader::new();
-        let result = loader.load("testapp").await.unwrap();
+        let result = loader.load("testapp", &formatters).await.unwrap();
 
         assert!(result.source.ends_with("testapp.json"));
-        assert!(result.content.contains("localhost"));
-        assert!(result.format_hint.is_none());
+        assert_eq!(result.data.get("host").unwrap().as_str(), Some("localhost"));
 
         std::env::set_current_dir(original_dir).unwrap();
     }

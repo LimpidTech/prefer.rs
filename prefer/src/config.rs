@@ -3,7 +3,7 @@
 use crate::discovery;
 use crate::error::{Error, Result};
 use crate::events::Emitter;
-use crate::formats;
+use crate::registry;
 use crate::value::{ConfigValue, FromValue};
 use crate::visitor::{visit, ValueVisitor};
 use std::collections::HashMap;
@@ -20,7 +20,6 @@ pub struct Config {
     source_path: Option<PathBuf>,
     source: Option<String>,
     loader_name: Option<String>,
-    formatter_name: Option<String>,
     emitter: Option<Emitter>,
 }
 
@@ -31,7 +30,6 @@ impl std::fmt::Debug for Config {
             .field("source_path", &self.source_path)
             .field("source", &self.source)
             .field("loader_name", &self.loader_name)
-            .field("formatter_name", &self.formatter_name)
             .finish()
     }
 }
@@ -43,7 +41,6 @@ impl Clone for Config {
             source_path: self.source_path.clone(),
             source: self.source.clone(),
             loader_name: self.loader_name.clone(),
-            formatter_name: self.formatter_name.clone(),
             emitter: None,
         }
     }
@@ -57,7 +54,6 @@ impl Config {
             source_path: None,
             source: None,
             loader_name: None,
-            formatter_name: None,
             emitter: None,
         }
     }
@@ -90,18 +86,12 @@ impl Config {
             source_path: Some(path),
             source: None,
             loader_name: None,
-            formatter_name: None,
             emitter: None,
         }
     }
 
     /// Create a Config with full metadata from the registry loading path.
-    pub(crate) fn with_metadata(
-        data: ConfigValue,
-        source: String,
-        loader_name: String,
-        formatter_name: String,
-    ) -> Self {
+    pub(crate) fn with_metadata(data: ConfigValue, source: String, loader_name: String) -> Self {
         let source_path = PathBuf::from(&source);
         let source_path = if source_path.exists() {
             Some(source_path)
@@ -114,7 +104,6 @@ impl Config {
             source_path,
             source: Some(source),
             loader_name: Some(loader_name),
-            formatter_name: Some(formatter_name),
             emitter: None,
         }
     }
@@ -131,7 +120,13 @@ impl Config {
     /// Load a configuration from a specific file path.
     pub async fn load_from_path(path: &PathBuf) -> Result<Self> {
         let contents = tokio::fs::read_to_string(path).await?;
-        let data = formats::parse(&contents, path)?;
+        let source = path.to_string_lossy().to_string();
+        let formatters = registry::collect_formatters();
+        let fmt = formatters
+            .iter()
+            .find(|f| f.provides(&source))
+            .ok_or_else(|| Error::UnsupportedFormat(path.clone()))?;
+        let data = fmt.deserialize(&contents)?;
 
         Ok(Self::with_source(data, path.clone()))
     }
@@ -149,11 +144,6 @@ impl Config {
     /// Get the name of the loader that loaded this config.
     pub fn loader_name(&self) -> Option<&str> {
         self.loader_name.as_deref()
-    }
-
-    /// Get the name of the formatter used to parse this config.
-    pub fn formatter_name(&self) -> Option<&str> {
-        self.formatter_name.as_deref()
     }
 
     /// Get a configuration value by key using dot notation.
@@ -319,10 +309,7 @@ fn set_nested(current: &mut ConfigValue, parts: &[&str], value: ConfigValue) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn obj(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
-        ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
-    }
+    use crate::value::test_helpers::obj;
 
     #[test]
     fn test_get_simple_value() {
@@ -434,16 +421,11 @@ mod tests {
 
     #[test]
     fn test_metadata_accessors() {
-        let config = Config::with_metadata(
-            ConfigValue::Null,
-            "/etc/myapp.toml".into(),
-            "file".into(),
-            "toml".into(),
-        );
+        let config =
+            Config::with_metadata(ConfigValue::Null, "/etc/myapp.toml".into(), "file".into());
 
         assert_eq!(config.source(), Some("/etc/myapp.toml"));
         assert_eq!(config.loader_name(), Some("file"));
-        assert_eq!(config.formatter_name(), Some("toml"));
     }
 
     #[test]
@@ -462,26 +444,19 @@ mod tests {
             ConfigValue::Null,
             "/nonexistent/path.toml".into(),
             "file".into(),
-            "toml".into(),
         );
         let cloned = config.clone();
         assert_eq!(cloned.source(), Some("/nonexistent/path.toml"));
         assert_eq!(cloned.loader_name(), Some("file"));
-        assert_eq!(cloned.formatter_name(), Some("toml"));
     }
 
     #[test]
     fn test_debug_output() {
-        let config = Config::with_metadata(
-            ConfigValue::Integer(42),
-            "test.json".into(),
-            "file".into(),
-            "json".into(),
-        );
+        let config =
+            Config::with_metadata(ConfigValue::Integer(42), "test.json".into(), "file".into());
         let debug = format!("{:?}", config);
         assert!(debug.contains("Config"));
         assert!(debug.contains("loader_name"));
-        assert!(debug.contains("formatter_name"));
         // emitter should NOT appear in debug output
         assert!(!debug.contains("emitter"));
     }
@@ -492,7 +467,6 @@ mod tests {
             ConfigValue::Null,
             "/this/path/does/not/exist.toml".into(),
             "file".into(),
-            "toml".into(),
         );
         // source_path should be None for non-existent paths
         assert!(config.source_path().is_none());
@@ -506,7 +480,6 @@ mod tests {
         assert!(config.source_path().is_none());
         assert!(config.source().is_none());
         assert!(config.loader_name().is_none());
-        assert!(config.formatter_name().is_none());
     }
 
     #[test]

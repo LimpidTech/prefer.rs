@@ -10,7 +10,7 @@
 #![allow(deprecated)] // Internal implementations still reference their own deprecated types
 
 use crate::error::{Error, Result};
-use crate::formats;
+use crate::registry;
 use crate::value::ConfigValue;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -91,7 +91,13 @@ impl FileSource {
 impl Source for FileSource {
     async fn load(&self) -> Result<ConfigValue> {
         let contents = tokio::fs::read_to_string(&self.path).await?;
-        formats::parse(&contents, &self.path)
+        let source = self.path.to_string_lossy().to_string();
+        let formatters = registry::collect_formatters();
+        let fmt = formatters
+            .iter()
+            .find(|f| f.provides(&source))
+            .ok_or_else(|| Error::UnsupportedFormat(self.path.clone()))?;
+        fmt.deserialize(&contents)
     }
 
     fn name(&self) -> &str {
@@ -312,20 +318,9 @@ fn merge_values(base: &mut ConfigValue, overlay: ConfigValue) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::value::test_helpers::{bool_val, int, obj};
     use serial_test::serial;
     use tempfile::TempDir;
-
-    fn obj(items: Vec<(&str, ConfigValue)>) -> ConfigValue {
-        ConfigValue::Object(items.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
-    }
-
-    fn int(i: i64) -> ConfigValue {
-        ConfigValue::Integer(i)
-    }
-
-    fn bool_val(b: bool) -> ConfigValue {
-        ConfigValue::Bool(b)
-    }
 
     #[tokio::test]
     async fn test_memory_source() {
