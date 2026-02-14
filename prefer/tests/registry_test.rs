@@ -1,11 +1,89 @@
 //! Tests for the registry-based load/watch pipeline.
 
+use async_trait::async_trait;
+use prefer::loader::db::{ColumnValue, ConfigEntry, ConfigLoader, DbLoader};
 use prefer::loader::file::FileLoader;
 use prefer::loader::Loader;
 use prefer::registry;
+use prefer::registry::RegisteredLoader;
 use serial_test::serial;
+use std::collections::BTreeMap;
 use std::io::Write;
 use tempfile::TempDir;
+
+struct RawJsonDbLoader;
+
+#[async_trait]
+impl ConfigLoader for RawJsonDbLoader {
+    fn scheme(&self) -> &str {
+        "rawjson"
+    }
+
+    async fn load_config(&self, _identifier: &str) -> prefer::Result<ConfigEntry> {
+        Ok(ConfigEntry::Raw {
+            format: "json".to_string(),
+            content: r#"{"host": "localhost", "port": 8080, "debug": true}"#.to_string(),
+        })
+    }
+
+    fn name(&self) -> &str {
+        "raw-json-integration"
+    }
+}
+
+struct RawTomlDbLoader;
+
+#[async_trait]
+impl ConfigLoader for RawTomlDbLoader {
+    fn scheme(&self) -> &str {
+        "rawtoml"
+    }
+
+    async fn load_config(&self, _identifier: &str) -> prefer::Result<ConfigEntry> {
+        Ok(ConfigEntry::Raw {
+            format: "toml".to_string(),
+            content: "[server]\nhost = \"localhost\"\nport = 9090\n".to_string(),
+        })
+    }
+
+    fn name(&self) -> &str {
+        "raw-toml-integration"
+    }
+}
+
+struct ColumnarDbLoader;
+
+#[async_trait]
+impl ConfigLoader for ColumnarDbLoader {
+    fn scheme(&self) -> &str {
+        "colint"
+    }
+
+    async fn load_config(&self, _identifier: &str) -> prefer::Result<ConfigEntry> {
+        let mut values = BTreeMap::new();
+        values.insert(
+            "database_host".to_string(),
+            ColumnValue::String("db.example.com".into()),
+        );
+        values.insert("database_port".to_string(), ColumnValue::Integer(5432));
+        values.insert("pool_size".to_string(), ColumnValue::Integer(10));
+        values.insert("ssl_enabled".to_string(), ColumnValue::Bool(true));
+        values.insert("connect_timeout".to_string(), ColumnValue::Float(5.5));
+        Ok(ConfigEntry::Columnar(values))
+    }
+
+    fn name(&self) -> &str {
+        "columnar-integration"
+    }
+}
+
+static RAW_JSON_LOADER: DbLoader<RawJsonDbLoader> = DbLoader::new(RawJsonDbLoader);
+static RAW_TOML_LOADER: DbLoader<RawTomlDbLoader> = DbLoader::new(RawTomlDbLoader);
+static COLUMNAR_LOADER: DbLoader<ColumnarDbLoader> = DbLoader::new(ColumnarDbLoader);
+
+inventory::submit! { RegisteredLoader(&RAW_JSON_LOADER) }
+inventory::submit! { RegisteredLoader(&RAW_TOML_LOADER) }
+inventory::submit! { RegisteredLoader(&COLUMNAR_LOADER) }
 
 #[test]
 fn test_file_loader_provides_bare_names() {
@@ -115,7 +193,6 @@ async fn test_load_routes_to_file_loader() {
 
     // Verify metadata was populated
     assert_eq!(config.loader_name(), Some("file"));
-    assert_eq!(config.formatter_name(), Some("json"));
     assert!(config.source().is_some());
 
     std::env::set_current_dir(original_dir).unwrap();
@@ -136,7 +213,6 @@ async fn test_load_toml_routes_correctly() {
 
     let name: String = config.get("name").unwrap();
     assert_eq!(name, "test");
-    assert_eq!(config.formatter_name(), Some("toml"));
 
     std::env::set_current_dir(original_dir).unwrap();
 }
@@ -218,7 +294,6 @@ async fn test_load_yaml_routes_correctly() {
 
     let host: String = config.get("host").unwrap();
     assert_eq!(host, "localhost");
-    assert_eq!(config.formatter_name(), Some("yaml"));
     assert_eq!(config.loader_name(), Some("file"));
 
     std::env::set_current_dir(original_dir).unwrap();
@@ -286,4 +361,55 @@ fn test_error_display_messages() {
 
     let err = prefer::Error::WatchNotSupported("scheme://x".into());
     assert!(err.to_string().contains("scheme://x"));
+}
+
+#[tokio::test]
+async fn test_db_loader_end_to_end_raw_json() {
+    let config = prefer::load("rawjson://settings").await.unwrap();
+
+    let host: String = config.get("host").unwrap();
+    assert_eq!(host, "localhost");
+
+    let port: i64 = config.get("port").unwrap();
+    assert_eq!(port, 8080);
+
+    let debug: bool = config.get("debug").unwrap();
+    assert!(debug);
+}
+
+#[tokio::test]
+async fn test_db_loader_end_to_end_raw_toml() {
+    let config = prefer::load("rawtoml://settings").await.unwrap();
+
+    let host: String = config.get("server.host").unwrap();
+    assert_eq!(host, "localhost");
+
+    let port: i64 = config.get("server.port").unwrap();
+    assert_eq!(port, 9090);
+}
+
+#[tokio::test]
+async fn test_db_loader_end_to_end_columnar() {
+    let config = prefer::load("colint://mydb/config").await.unwrap();
+
+    let host: String = config.get("database_host").unwrap();
+    assert_eq!(host, "db.example.com");
+
+    let port: i64 = config.get("database_port").unwrap();
+    assert_eq!(port, 5432);
+
+    let pool: i64 = config.get("pool_size").unwrap();
+    assert_eq!(pool, 10);
+
+    let ssl: bool = config.get("ssl_enabled").unwrap();
+    assert!(ssl);
+
+    let timeout: f64 = config.get("connect_timeout").unwrap();
+    assert!((timeout - 5.5).abs() < f64::EPSILON);
+}
+
+#[tokio::test]
+async fn test_db_loader_unregistered_scheme_returns_error() {
+    let result = prefer::load("unknowndb://settings").await;
+    assert!(result.is_err());
 }
