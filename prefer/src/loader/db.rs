@@ -401,8 +401,8 @@ mod tests {
             ConfigValue::Integer(42)
         );
         assert_eq!(
-            column_to_config_value(ColumnValue::Float(3.14)),
-            ConfigValue::Float(3.14)
+            column_to_config_value(ColumnValue::Float(1.5)),
+            ConfigValue::Float(1.5)
         );
         assert_eq!(
             column_to_config_value(ColumnValue::String("hello".into())),
