@@ -6,33 +6,29 @@
 //!
 //! Built-in loaders:
 //! - `FileLoader` — handles bare names and `file://` URLs
-//!
-//! External crates (e.g., `prefer_db`) can register additional loaders for
-//! schemes like `postgres://` and `sqlite://`.
+//! - `DbLoader` — adapter for database-backed loaders via `ConfigLoader`
 
+pub mod db;
 pub mod file;
 
 use crate::config::Config;
 use crate::error::Result;
+use crate::formatter::Formatter;
+use crate::value::ConfigValue;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 /// Result of a successful load operation.
 ///
-/// Contains the raw content and metadata needed for the registry to find
-/// an appropriate formatter.
+/// Contains parsed configuration data ready for use. Loaders are responsible
+/// for parsing their source format (using the provided formatters, direct
+/// conversion, etc.) before returning.
 pub struct LoadResult {
     /// The resolved source identifier (e.g., "/home/user/.config/myapp.toml").
     pub source: String,
 
-    /// The raw content loaded from the source.
-    pub content: String,
-
-    /// Optional format hint (e.g., "json", "toml").
-    ///
-    /// Used when the source identifier doesn't have a file extension that
-    /// can be used to determine the format (e.g., database-backed configs).
-    pub format_hint: Option<String>,
+    /// The parsed configuration data.
+    pub data: ConfigValue,
 }
 
 /// A source of configuration data that can be discovered via the registry.
@@ -41,11 +37,17 @@ pub struct LoadResult {
 /// participates in automatic discovery: the registry calls `provides()` on
 /// each registered loader to find one that can handle a given identifier.
 ///
+/// The `load()` method receives the available formatters so that loaders
+/// which deal with text-based formats (files, raw database blobs) can
+/// delegate parsing. Loaders that produce structured data directly
+/// (e.g., from database columns) can ignore the formatters.
+///
 /// # Implementing a Loader
 ///
 /// ```ignore
 /// use prefer::loader::{Loader, LoadResult};
-/// use prefer::Result;
+/// use prefer::formatter::Formatter;
+/// use prefer::{ConfigValue, Result};
 /// use async_trait::async_trait;
 ///
 /// struct MyLoader;
@@ -56,12 +58,15 @@ pub struct LoadResult {
 ///         identifier.starts_with("myscheme://")
 ///     }
 ///
-///     async fn load(&self, identifier: &str) -> Result<LoadResult> {
-///         let content = fetch_from_my_source(identifier).await?;
+///     async fn load(
+///         &self,
+///         identifier: &str,
+///         _formatters: &[&dyn Formatter],
+///     ) -> Result<LoadResult> {
+///         let data = fetch_and_parse(identifier).await?;
 ///         Ok(LoadResult {
 ///             source: identifier.to_string(),
-///             content,
-///             format_hint: Some("json".to_string()),
+///             data,
 ///         })
 ///     }
 ///
@@ -79,11 +84,13 @@ pub trait Loader: Send + Sync + 'static {
     /// connecting — the connection happens in `load()`.
     fn provides(&self, identifier: &str) -> bool;
 
-    /// Load configuration content from the identifier.
+    /// Load and parse configuration from the identifier.
     ///
-    /// Returns the resolved source path/URL, raw content string, and an
-    /// optional format hint for the formatter.
-    async fn load(&self, identifier: &str) -> Result<LoadResult>;
+    /// The `formatters` slice contains all registered formatters. Loaders
+    /// that deal with text-based formats should search this list (by
+    /// extension or hint) to find an appropriate parser. Loaders that
+    /// produce structured data directly can ignore it.
+    async fn load(&self, identifier: &str, formatters: &[&dyn Formatter]) -> Result<LoadResult>;
 
     /// Human-readable name for error messages.
     fn name(&self) -> &str;
